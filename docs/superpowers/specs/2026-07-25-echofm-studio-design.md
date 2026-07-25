@@ -2,7 +2,7 @@
 
 ## Goal
 
-Create a secure, persistent creator workspace and MCP server where an authenticated creator or authorized AI agent writes an episode script, selects an OpenAI narration voice and a background-music track from dropdowns or tools, generates a thumbnail from a prompt, and saves or publishes the episode.
+Create a secure, persistent creator workspace where an authenticated creator writes an episode script, selects an OpenAI narration voice and a background-music track from dropdowns, generates a thumbnail from a prompt, and saves or publishes the episode. The same backend will later power an MCP server for authorized AI agents.
 
 ## Product flow
 
@@ -14,7 +14,11 @@ Create a secure, persistent creator workspace and MCP server where an authentica
 6. The creator writes an image prompt and generates a portrait thumbnail.
 7. The Review step displays the script summary, chosen voice, music, narration audio, and thumbnail. The creator saves a draft or publishes.
 
-The same workflow is also available through MCP tools. A creator can connect Claude Code, Cursor, Codex, or another MCP host and ask it to create or publish an episode without browser automation.
+## Delivery sequencing
+
+Phase 1 delivers the Studio web application, Supabase backend, and OpenAI integrations. Its service boundaries and API contracts are designed so a later MCP server can reuse them without duplicating creator, generation, or publication logic.
+
+Phase 2 delivers the MCP server and agent configuration. A creator will then be able to connect Claude Code, Cursor, Codex, or another MCP host and ask it to create or publish an episode without browser automation.
 
 ## User interface
 
@@ -61,6 +65,8 @@ Server-side Next.js route handlers use `OPENAI_API_KEY`; it is never exposed in 
 
 ## MCP server
 
+**Phase 2 — not part of the current Studio implementation.**
+
 The project ships an independently runnable TypeScript MCP server using the official MCP TypeScript SDK and stdio transport. It is distributed with the repository and connects to the deployed EchoFM Studio backend using two environment variables:
 
 - `ECHOFM_STUDIO_URL`: the deployed Studio origin.
@@ -92,4 +98,4 @@ Every MCP tool validates its input, authenticates the token, checks episode owne
 
 ## Scope boundaries
 
-This first version generates narration audio and persists the selected background music. It does not mix narration and music into one rendered master file; previews use the narration playlist and selected music track. A future render pipeline can compose them after the creator workflow is proven.
+The current Studio version generates narration audio and persists the selected background music. It does not mix narration and music into one rendered master file; previews use the narration playlist and selected music track. A future render pipeline can compose them after the creator workflow is proven. The MCP server is explicitly deferred to Phase 2 and is not built alongside the Studio.
