@@ -70,6 +70,21 @@ function ConsentContent() {
     reloadBrowser();
   }
 
+  async function signInWithGoogle() {
+    if (!authorizationId) return;
+    setState('submitting');
+    const redirectTo = new URL('/oauth/consent', window.location.origin);
+    redirectTo.searchParams.set('authorization_id', authorizationId);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: redirectTo.href },
+    });
+    if (error) {
+      setMessage(error.message);
+      setState('signed-out');
+    }
+  }
+
   async function decide(allow: boolean) {
     if (!authorizationId) return;
     setState('submitting');
@@ -95,6 +110,8 @@ function ConsentContent() {
 
           {state === 'signed-out' && (
             <div className="mt-8 grid gap-4">
+              <button onClick={() => void signInWithGoogle()} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 font-semibold text-black transition hover:bg-zinc-200"><span className="text-base" aria-hidden="true">G</span>Continue with Google</button>
+              <div className="flex items-center gap-3 text-xs text-fm-tertiary before:h-px before:flex-1 before:bg-fm-divider after:h-px after:flex-1 after:bg-fm-divider">or use email</div>
               <label className="text-sm text-fm-secondary">Email
                 <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" className="mt-2 h-11 w-full rounded-xl border border-fm-border bg-black/20 px-3 text-fm-primary" />
               </label>

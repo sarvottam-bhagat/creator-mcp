@@ -38,6 +38,7 @@ export default function StudioPage() {
   const [notice, setNotice] = useState('Preparing your private creator workspace…');
   const [busy, setBusy] = useState<'narration' | 'thumbnail' | 'save' | 'publish' | null>(null);
   const [hasSession, setHasSession] = useState(false);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [publishedEpisodes, setPublishedEpisodes] = useState<PublishedEpisode[]>([]);
@@ -62,14 +63,15 @@ export default function StudioPage() {
         }
       }
       if (!session) {
-        const { data, error } = await supabase.auth.signInAnonymously();
-        if (error || !data.session) {
-          setNotice('Sign-in is required before saving or generating. Enable Anonymous Sign-Ins in Supabase Auth to use Studio as a guest.');
-          return;
-        }
-        session = data.session;
+        setHasSession(false);
+        setAccountEmail(null);
+        setNotice('Sign in with Google to create, save, and publish episodes in your private Studio.');
+        return;
       }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
       setHasSession(true);
+      setAccountEmail(user.email ?? null);
       const { data: tracks, error: tracksError } = await supabase
         .from('music_tracks')
         .select('id, title, mood, duration_seconds, asset_key')
@@ -101,6 +103,27 @@ export default function StudioPage() {
     }
     if (data.session) window.location.reload();
     else setNotice('Account created. Confirm the email, then sign in to generate and save episodes.');
+  }
+
+  async function signInWithGoogle() {
+    setNotice('Opening Google sign-in…');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/studio` },
+    });
+    if (error) setNotice(error.message);
+  }
+
+  async function signOut() {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+    setHasSession(false);
+    setAccountEmail(null);
+    setPublishedEpisodes([]);
+    setNotice('Signed out. Sign in with Google to return to your private Studio.');
   }
 
   useEffect(() => {
@@ -218,6 +241,7 @@ export default function StudioPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/studio/connections" className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">Connected agents</Link>
+            {hasSession && <button onClick={() => void signOut()} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">Sign out</button>}
             <button onClick={() => void save('draft')} disabled={busy !== null} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save draft'}</button>
           </div>
         </div>
@@ -271,7 +295,8 @@ export default function StudioPage() {
           <aside className="h-fit rounded-2xl border border-fm-divider bg-fm-surface p-5">
             <p className="text-xs font-medium tracking-[0.14em] text-fm-tertiary uppercase">Studio status</p>
             <p className="mt-3 text-sm leading-6 text-fm-secondary">{notice}</p>
-            {!hasSession && <div className="mt-5 space-y-2 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">Sign in to create</p><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="you@example.com" className="h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary outline-none focus:border-fm-border-bright" /><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Password" className="h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary outline-none focus:border-fm-border-bright" /><div className="flex gap-2"><button onClick={() => void signIn()} className="rounded-full bg-fm-red px-3 py-2 text-xs font-semibold text-white">Sign in</button><button onClick={() => void signUp()} className="rounded-full border border-fm-border px-3 py-2 text-xs font-semibold text-fm-secondary">Create account</button></div></div>}
+            {!hasSession && <div className="mt-5 space-y-3 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">Sign in to create</p><button onClick={() => void signInWithGoogle()} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-black transition hover:bg-zinc-200"><span className="text-base" aria-hidden="true">G</span>Continue with Google</button><div className="flex items-center gap-3 text-xs text-fm-tertiary before:h-px before:flex-1 before:bg-fm-divider after:h-px after:flex-1 after:bg-fm-divider">or use email</div><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="you@example.com" className="h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary outline-none focus:border-fm-border-bright" /><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Password" className="h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary outline-none focus:border-fm-border-bright" /><div className="flex gap-2"><button onClick={() => void signIn()} className="rounded-full bg-fm-red px-3 py-2 text-xs font-semibold text-white">Sign in</button><button onClick={() => void signUp()} className="rounded-full border border-fm-border px-3 py-2 text-xs font-semibold text-fm-secondary">Create account</button></div></div>}
+            {hasSession && <p className="mt-5 border-t border-fm-divider pt-5 text-xs text-fm-tertiary">Signed in as {accountEmail ?? 'your Google account'}.</p>}
             <div className="mt-6 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">What happens next?</p><p className="mt-2 text-xs leading-5 text-fm-tertiary">This same episode workflow is being designed so an MCP-connected AI agent can create it later — with your approval and the same secure backend.</p></div>
           </aside>
         </section>
