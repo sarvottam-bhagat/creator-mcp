@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import { getPublishBlockers } from '@/lib/studio/publish';
 import { OPENAI_VOICES, type OpenAiVoice } from '@/lib/studio/voices';
@@ -23,6 +23,7 @@ export default function StudioPage() {
   const [thumbnailPath, setThumbnailPath] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [narrationPaths, setNarrationPaths] = useState<string[]>([]);
+  const [narrationUrls, setNarrationUrls] = useState<string[]>([]);
   const [episodeId, setEpisodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState('Preparing your private creator workspace…');
   const [busy, setBusy] = useState<'narration' | 'thumbnail' | 'save' | 'publish' | null>(null);
@@ -50,6 +51,21 @@ export default function StudioPage() {
     }
     void prepareStudio();
   }, []);
+
+  useEffect(() => {
+    async function loadNarrationPreviews() {
+      if (!narrationPaths.length) {
+        setNarrationUrls([]);
+        return;
+      }
+      const urls = await Promise.all(narrationPaths.map(async (path) => {
+        const { data } = await supabase.storage.from('episode-audio').createSignedUrl(path, 60 * 60);
+        return data?.signedUrl;
+      }));
+      setNarrationUrls(urls.filter((url): url is string => Boolean(url)));
+    }
+    void loadNarrationPreviews();
+  }, [narrationPaths]);
 
   const blockers = useMemo(
     () => getPublishBlockers({ title, script, voice, musicTrackId, narrationPaths, thumbnailPath }),
@@ -187,6 +203,7 @@ export default function StudioPage() {
               <div className="mt-7 divide-y divide-fm-divider rounded-xl border border-fm-divider bg-black/10">{[
                 ['Episode', title || 'Untitled episode'], ['Narration', narrationPaths.length ? `${selectedVoice?.label} · ${narrationPaths.length} generated part${narrationPaths.length === 1 ? '' : 's'}` : 'Not generated'], ['Background music', selectedMusic ? `${selectedMusic.title} · ${selectedMusic.mood}` : 'Not selected'], ['Thumbnail', thumbnailPath ? 'Generated and attached' : 'Not generated'],
               ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 p-4 text-sm"><span className="text-fm-tertiary">{label}</span><span className="text-right text-fm-primary">{value}</span></div>)}</div>
+              <EpisodePreview narrationUrls={narrationUrls} musicTrackId={musicTrackId} musicName={selectedMusic?.title} />
               {blockers.length > 0 && <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">To publish, complete: {blockers.join(', ')}.</p>}
               <button onClick={() => void save('published')} disabled={busy !== null || blockers.length > 0} className="mt-6 rounded-full bg-fm-red px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busy === 'publish' ? 'Publishing…' : 'Publish episode'}</button>
             </div>}
@@ -209,4 +226,83 @@ function StepHeading({ eyebrow, title, text }: { eyebrow: string; title: string;
 
 function NextButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return <button onClick={onClick} className="mt-7 text-sm font-medium text-fm-secondary transition hover:text-fm-primary">{children} →</button>;
+}
+
+function EpisodePreview({ narrationUrls, musicTrackId, musicName }: { narrationUrls: string[]; musicTrackId: string; musicName?: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const contextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const musicRef = useRef<OscillatorNode[]>([]);
+  const [part, setPart] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  const noteByTrack: Record<string, number> = {
+    'night-drive': 110, 'soft-focus': 174.61, 'midnight-rain': 146.83,
+    'golden-hour': 196, 'quiet-tension': 116.54, 'city-lights': 130.81,
+  };
+
+  function stopMusic() {
+    musicRef.current.forEach((node) => node.stop());
+    musicRef.current = [];
+  }
+
+  async function playMix() {
+    const audio = audioRef.current;
+    if (!audio || !narrationUrls.length) return;
+    const context = contextRef.current ?? new window.AudioContext();
+    contextRef.current = context;
+    if (!sourceRef.current) {
+      sourceRef.current = context.createMediaElementSource(audio);
+      const voiceGain = context.createGain();
+      voiceGain.gain.value = 0.92;
+      sourceRef.current.connect(voiceGain).connect(context.destination);
+    }
+    await context.resume();
+    stopMusic();
+    const musicGain = context.createGain();
+    musicGain.gain.value = 0.055;
+    musicGain.connect(context.destination);
+    const root = noteByTrack[musicTrackId] ?? 110;
+    const notes = [root, root * 1.4983];
+    musicRef.current = notes.map((frequency, index) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = index ? 'triangle' : 'sine';
+      oscillator.frequency.value = frequency;
+      oscillator.connect(musicGain);
+      oscillator.start();
+      return oscillator;
+    });
+    setPart(0);
+    audio.currentTime = 0;
+    await audio.play();
+    setPlaying(true);
+  }
+
+  function onEnded() {
+    const next = part + 1;
+    if (next < narrationUrls.length) {
+      setPart(next);
+      return;
+    }
+    stopMusic();
+    setPlaying(false);
+  }
+
+  useEffect(() => () => stopMusic(), []);
+
+  if (!narrationUrls.length) {
+    return <div className="mt-5 rounded-xl border border-dashed border-fm-border p-4 text-sm text-fm-tertiary">Generate narration to unlock the listening preview.</div>;
+  }
+
+  return (
+    <div className="mt-5 rounded-xl border border-fm-border bg-fm-surface-2 p-4">
+      <p className="text-sm font-medium text-fm-primary">Listen before you publish</p>
+      <p className="mt-1 text-xs leading-5 text-fm-tertiary">Preview the narrated episode with the selected {musicName ?? 'background music'} bed. Adjust the script, voice or mood, then regenerate before publishing.</p>
+      <audio ref={audioRef} src={narrationUrls[part]} onEnded={onEnded} onPause={() => { if (playing) { stopMusic(); setPlaying(false); } }} className="mt-4 w-full" controls />
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-xs text-fm-tertiary">Part {part + 1} of {narrationUrls.length}</span>
+        <button onClick={() => void playMix()} className="rounded-full bg-fm-red px-4 py-2 text-xs font-semibold text-white hover:bg-red-700">{playing ? 'Restart mixed preview' : 'Play mixed preview'}</button>
+      </div>
+    </div>
+  );
 }
