@@ -49,7 +49,12 @@ async function handle(request: Request) {
   }
   if (!await authenticate(request, context)) return unauthorized(request);
 
-  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  // Vercel functions are stateless. JSON avoids an SSE stream being closed during
+  // function cleanup before MCP clients receive the initialize response.
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
   const server = createEchoFmMcpServer(createEchoFmMcpServices(context));
   try {
     await server.connect(transport);
