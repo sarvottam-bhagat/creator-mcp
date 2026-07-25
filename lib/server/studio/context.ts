@@ -33,16 +33,16 @@ export async function createStudioContext(
   config: StudioContextConfig,
   createSupabaseClient: SupabaseFactory = createClient,
 ): Promise<StudioContext> {
-  const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseKey, {
+  // Keep token verification separate from the client used for data access.
+  // OAuth tokens are not persisted as a Supabase browser session, so the data
+  // client must receive the token through `accessToken` on every RLS query.
+  const verifier = createSupabaseClient(config.supabaseUrl, config.supabaseKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
-    global: {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    },
   });
-  const { data, error } = await supabase.auth.getUser(accessToken);
+  const { data, error } = await verifier.auth.getUser(accessToken);
 
   if (error || !data.user) {
     throw new StudioError(
@@ -51,6 +51,10 @@ export async function createStudioContext(
       401,
     );
   }
+
+  const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseKey, {
+    accessToken: async () => accessToken,
+  });
 
   return {
     accessToken,

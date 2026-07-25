@@ -19,12 +19,19 @@ describe('createStudioContext', () => {
       factory,
     );
 
-    expect(factory).toHaveBeenCalledWith(
+    expect(factory).toHaveBeenNthCalledWith(
+      1,
       'https://project.supabase.co',
       'sb_publishable_test',
       expect.objectContaining({
-        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { autoRefreshToken: false, persistSession: false },
       }),
+    );
+    expect(factory).toHaveBeenNthCalledWith(
+      2,
+      'https://project.supabase.co',
+      'sb_publishable_test',
+      expect.objectContaining({ accessToken: expect.any(Function) }),
     );
     expect(getUser).toHaveBeenCalledWith(token);
     expect(context.user.id).toBe('user-1');
