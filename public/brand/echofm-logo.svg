@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="EchoFM">
+  <defs>
+    <linearGradient id="echo-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#4f1fd1"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#echo-bg)"/>
+  <!-- three concentric arcs: an echo radiating from a point -->
+  <g fill="none" stroke="#fff" stroke-linecap="round">
+    <circle cx="22" cy="32" r="4" fill="#fff" stroke="none"/>
+    <path d="M31 22a14 14 0 0 1 0 20" stroke-width="3.4" opacity="0.95"/>
+    <path d="M38.5 16.5a22 22 0 0 1 0 31" stroke-width="3.4" opacity="0.6"/>
+    <path d="M46 11a30 30 0 0 1 0 42" stroke-width="3.4" opacity="0.3"/>
+  </g>
+</svg>

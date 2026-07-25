@@ -1,0 +1,59 @@
+<svg width="80" height="70" viewBox="0 0 80 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_3_817)">
+<g clip-path="url(#clip1_3_817)">
+<path d="M25 62.4999H64.6V69.9999H16V66.6999C16 51.6999 25.4 45.8999 36.4 39.0999C45.8 33.2999 55.5 29.9999 55.5 19.8999C55.5 11.9999 49.3 7.99991 42.3 7.99991C34.2 7.99991 29.3 11.8999 22.6 20.1999L16.1 15.5999C22.7 6.19991 30.5 0.399902 42.1 0.399902C55.8 0.399902 64.4 8.7999 64.4 19.5999C64.4 33.9999 52.8 38.3999 41.6 45.2999C32.9 50.5999 26.1 54.0999 25 62.4999Z" fill="white"/>
+</g>
+<g clip-path="url(#clip2_3_817)" filter="url(#filter0_f_3_817)">
+<path d="M33 62.1H72.6V69.6H24V66.3C24 51.3 33.4 45.5 44.4 38.7C53.8 32.9 63.5 29.6 63.5 19.5C63.5 11.6 57.3 7.6 50.3 7.6C42.2 7.6 37.3 11.5 30.6 19.8L24.1 15.2C30.7 5.8 38.5 0 50.1 0C63.8 0 72.4 8.4 72.4 19.2C72.4 33.6 60.8 38 49.6 44.9C40.9 50.2 34.1 53.7 33 62.1Z" fill="white" fill-opacity="0.5"/>
+</g>
+<g clip-path="url(#clip3_3_817)" filter="url(#filter1_f_3_817)">
+<path d="M17.4004 62.1H57.0004V69.6H8.40039V66.3C8.40039 51.3 17.8004 45.5 28.8004 38.7C38.2004 32.9 47.9004 29.6 47.9004 19.5C47.9004 11.6 41.7004 7.6 34.7004 7.6C26.6004 7.6 21.7004 11.5 15.0004 19.8L8.50039 15.2C15.1004 5.8 22.9004 0 34.5004 0C48.2004 0 56.8004 8.4 56.8004 19.2C56.8004 33.6 45.2004 38 34.0004 44.9C25.3004 50.2 18.5004 53.7 17.4004 62.1Z" fill="white" fill-opacity="0.5"/>
+</g>
+<g clip-path="url(#clip4_3_817)" filter="url(#filter2_f_3_817)">
+<path d="M39 62.4999H78.6V69.9999H30V66.6999C30 51.6999 39.4 45.8999 50.4 39.0999C59.8 33.2999 69.5 29.9999 69.5 19.8999C69.5 11.9999 63.3 7.99991 56.3 7.99991C48.2 7.99991 43.3 11.8999 36.6 20.1999L30.1 15.5999C36.7 6.19991 44.5 0.399902 56.1 0.399902C69.8 0.399902 78.4 8.7999 78.4 19.5999C78.4 33.9999 66.8 38.3999 55.6 45.2999C46.9 50.5999 40.1 54.0999 39 62.4999Z" fill="white" fill-opacity="0.2"/>
+</g>
+<g clip-path="url(#clip5_3_817)" filter="url(#filter3_f_3_817)">
+<path d="M12.4004 62.4999H52.0004V69.9999H3.40039V66.6999C3.40039 51.6999 12.8004 45.8999 23.8004 39.0999C33.2004 33.2999 42.9004 29.9999 42.9004 19.8999C42.9004 11.9999 36.7004 7.99991 29.7004 7.99991C21.6004 7.99991 16.7004 11.8999 10.0004 20.1999L3.50039 15.5999C10.1004 6.19991 17.9004 0.399902 29.5004 0.399902C43.2004 0.399902 51.8004 8.7999 51.8004 19.5999C51.8004 33.9999 40.2004 38.3999 29.0004 45.2999C20.3004 50.5999 13.5004 54.0999 12.4004 62.4999Z" fill="white" fill-opacity="0.2"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_f_3_817" x="54" y="-2" width="22" height="74" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="1" result="effect1_foregroundBlur_3_817"/>
+</filter>
+<filter id="filter1_f_3_817" x="0" y="-2" width="27" height="74" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="1" result="effect1_foregroundBlur_3_817"/>
+</filter>
+<filter id="filter2_f_3_817" x="72" y="-3" width="12" height="76" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="1.5" result="effect1_foregroundBlur_3_817"/>
+</filter>
+<filter id="filter3_f_3_817" x="-4" y="-3" width="12" height="76" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="1.5" result="effect1_foregroundBlur_3_817"/>
+</filter>
+<clipPath id="clip0_3_817">
+<rect width="80" height="70" fill="white"/>
+</clipPath>
+<clipPath id="clip1_3_817">
+<rect width="27" height="70" fill="white" transform="translate(27)"/>
+</clipPath>
+<clipPath id="clip2_3_817">
+<rect width="18" height="70" fill="white" transform="translate(56)"/>
+</clipPath>
+<clipPath id="clip3_3_817">
+<rect width="23" height="70" fill="white" transform="matrix(-1 0 0 1 25 0)"/>
+</clipPath>
+<clipPath id="clip4_3_817">
+<rect width="6" height="70" fill="white" transform="translate(75)"/>
+</clipPath>
+<clipPath id="clip5_3_817">
+<rect width="6" height="70" fill="white" transform="matrix(-1 0 0 1 5 0)"/>
+</clipPath>
+</defs>
+</svg>

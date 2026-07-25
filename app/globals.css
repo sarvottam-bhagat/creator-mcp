@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/*
+  Design tokens read off the reference site. Names mirror the semantic roles
+  (primary/secondary/tertiary text, divider, surface) rather than raw colors so
+  components read intentionally.
+*/
+@theme {
+  --color-fm-bg: #0a0a0a;
+  --color-fm-surface: #141414;
+  --color-fm-surface-2: #1d1d1d;
+  --color-fm-elevated: #2f2f2f;
+
+  --color-fm-primary: #f0f0f0;
+  --color-fm-secondary: #c8c8c8;
+  --color-fm-tertiary: #828282;
+
+  --color-fm-divider: #1d1d1d;
+  --color-fm-border: #414141;
+  --color-fm-border-strong: #545454;
+  --color-fm-border-bright: #9d9d9d;
+
+  --color-fm-red: #d1111e;
+  --color-fm-accent: #7c3aed;
+
+  --font-fm-brand: var(--font-lab), "Segoe UI", system-ui, sans-serif;
+}
+
+html,
+body {
+  background: var(--color-fm-bg);
+  color: var(--color-fm-primary);
+}
+
+body {
+  font-family: var(--font-fm-brand);
+}
+
+/* Horizontal card rows scroll but never show a scrollbar. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+  Rank numerals in the "Popular on Pocket FM" row are outlined glyphs that the
+  cover art overlaps. Stroke via text-shadow keeps them crisp at large sizes.
+*/
+.rank-numeral {
+  color: var(--color-fm-bg);
+  -webkit-text-stroke: 2px #4a4a4a;
+  paint-order: stroke fill;
+}

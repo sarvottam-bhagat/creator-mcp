@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="364" height="364" viewBox="0 0 364 364" role="img" aria-label="The Garden on Fifth">
+  <defs>
+    <linearGradient id="g" gradientTransform="rotate(31 .5 .5)">
+      <stop offset="0" stop-color="#331a54"/><stop offset="1" stop-color="#9333ea"/>
+    </linearGradient>
+    <clipPath id="c"><rect width="364" height="364"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="364" height="364" fill="url(#g)"/>
+    <circle cx="24" cy="320" r="144" fill="#fff" opacity="0.173"/><circle cx="307" cy="231" r="128" fill="#fff" opacity="0.073"/><circle cx="276" cy="87" r="177" fill="#fff" opacity="0.195"/>
+    <rect width="364" height="364" fill="url(#g)" opacity="0.35"/>
+    <rect y="232" width="364" height="132" fill="#000" opacity="0.34"/>
+    <text x="182" y="159.68" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="36" font-weight="700" fill="#fff" letter-spacing="1.5"><tspan x="182" dy="0">THE GARDEN ON</tspan><tspan x="182" dy="40.32000000000001">FIFTH</tspan></text>
+    <text x="182" y="330" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="15" fill="#fff" opacity="0.72" letter-spacing="3">MAGICAL REALISM</text>
+  </g>
+</svg>

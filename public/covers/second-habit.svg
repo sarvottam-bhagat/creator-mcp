@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="364" height="364" viewBox="0 0 364 364" role="img" aria-label="Second Habit">
+  <defs>
+    <linearGradient id="g" gradientTransform="rotate(81 .5 .5)">
+      <stop offset="0" stop-color="#500724"/><stop offset="1" stop-color="#db2777"/>
+    </linearGradient>
+    <clipPath id="c"><rect width="364" height="364"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="364" height="364" fill="url(#g)"/>
+    <circle cx="310" cy="90" r="156" fill="#fff" opacity="0.103"/><circle cx="270" cy="248" r="101" fill="#fff" opacity="0.182"/><circle cx="100" cy="277" r="62" fill="#fff" opacity="0.164"/>
+    <rect width="364" height="364" fill="url(#g)" opacity="0.35"/>
+    <rect y="232" width="364" height="132" fill="#000" opacity="0.34"/>
+    <text x="182" y="182" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="36" font-weight="700" fill="#fff" letter-spacing="1.5"><tspan x="182" dy="0">SECOND HABIT</tspan></text>
+    <text x="182" y="330" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="15" fill="#fff" opacity="0.72" letter-spacing="3">ROMANCE</text>
+  </g>
+</svg>

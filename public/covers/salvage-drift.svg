@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="364" height="364" viewBox="0 0 364 364" role="img" aria-label="Salvage Drift">
+  <defs>
+    <linearGradient id="g" gradientTransform="rotate(8 .5 .5)">
+      <stop offset="0" stop-color="#020617"/><stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <clipPath id="c"><rect width="364" height="364"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="364" height="364" fill="url(#g)"/>
+    <circle cx="45" cy="17" r="150" fill="#fff" opacity="0.169"/><circle cx="361" cy="156" r="67" fill="#fff" opacity="0.184"/><circle cx="193" cy="233" r="77" fill="#fff" opacity="0.073"/>
+    <rect width="364" height="364" fill="url(#g)" opacity="0.35"/>
+    <rect y="232" width="364" height="132" fill="#000" opacity="0.34"/>
+    <text x="182" y="182" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="36" font-weight="700" fill="#fff" letter-spacing="1.5"><tspan x="182" dy="0">SALVAGE DRIFT</tspan></text>
+    <text x="182" y="330" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="15" fill="#fff" opacity="0.72" letter-spacing="3">SCI-FI</text>
+  </g>
+</svg>

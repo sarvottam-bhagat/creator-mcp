@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="364" height="364" viewBox="0 0 364 364" role="img" aria-label="Meridian of the Jade River">
+  <defs>
+    <linearGradient id="g" gradientTransform="rotate(50 .5 .5)">
+      <stop offset="0" stop-color="#032f2a"/><stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <clipPath id="c"><rect width="364" height="364"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="364" height="364" fill="url(#g)"/>
+    <circle cx="283" cy="320" r="177" fill="#fff" opacity="0.095"/><circle cx="183" cy="153" r="139" fill="#fff" opacity="0.133"/><circle cx="354" cy="206" r="94" fill="#fff" opacity="0.117"/>
+    <rect width="364" height="364" fill="url(#g)" opacity="0.35"/>
+    <rect y="232" width="364" height="132" fill="#000" opacity="0.34"/>
+    <text x="182" y="144.8" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="30" font-weight="700" fill="#fff" letter-spacing="1.5"><tspan x="182" dy="0">MERIDIAN OF</tspan><tspan x="182" dy="33.6">THE JADE</tspan><tspan x="182" dy="33.6">RIVER</tspan></text>
+    <text x="182" y="330" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="15" fill="#fff" opacity="0.72" letter-spacing="3">EASTERN FANTASY</text>
+  </g>
+</svg>

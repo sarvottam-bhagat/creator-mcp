@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="364" height="364" viewBox="0 0 364 364" role="img" aria-label="The Hedge Between">
+  <defs>
+    <linearGradient id="g" gradientTransform="rotate(14 .5 .5)">
+      <stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+    <clipPath id="c"><rect width="364" height="364"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="364" height="364" fill="url(#g)"/>
+    <circle cx="284" cy="251" r="125" fill="#fff" opacity="0.101"/><circle cx="10" cy="217" r="132" fill="#fff" opacity="0.110"/><circle cx="137" cy="127" r="67" fill="#fff" opacity="0.090"/>
+    <rect width="364" height="364" fill="url(#g)" opacity="0.35"/>
+    <rect y="232" width="364" height="132" fill="#000" opacity="0.34"/>
+    <text x="182" y="159.68" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="36" font-weight="700" fill="#fff" letter-spacing="1.5"><tspan x="182" dy="0">THE HEDGE</tspan><tspan x="182" dy="40.32000000000001">BETWEEN</tspan></text>
+    <text x="182" y="330" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="15" fill="#fff" opacity="0.72" letter-spacing="3">FANTASY</text>
+  </g>
+</svg>

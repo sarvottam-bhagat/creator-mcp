@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="364" height="364" viewBox="0 0 364 364" role="img" aria-label="Lattice Drift">
+  <defs>
+    <linearGradient id="g" gradientTransform="rotate(10 .5 .5)">
+      <stop offset="0" stop-color="#0a0f1f"/><stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <clipPath id="c"><rect width="364" height="364"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="364" height="364" fill="url(#g)"/>
+    <circle cx="107" cy="297" r="108" fill="#fff" opacity="0.124"/><circle cx="206" cy="36" r="77" fill="#fff" opacity="0.070"/><circle cx="139" cy="336" r="176" fill="#fff" opacity="0.120"/>
+    <rect width="364" height="364" fill="url(#g)" opacity="0.35"/>
+    <rect y="232" width="364" height="132" fill="#000" opacity="0.34"/>
+    <text x="182" y="182" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="36" font-weight="700" fill="#fff" letter-spacing="1.5"><tspan x="182" dy="0">LATTICE DRIFT</tspan></text>
+    <text x="182" y="330" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
+      font-size="15" fill="#fff" opacity="0.72" letter-spacing="3">SCI-FI</text>
+  </g>
+</svg>
