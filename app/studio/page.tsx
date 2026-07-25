@@ -7,7 +7,7 @@ import { getPublishBlockers } from '@/lib/studio/publish';
 import { OPENAI_VOICES, type OpenAiVoice } from '@/lib/studio/voices';
 import { supabase } from '@/lib/supabase/client';
 
-type MusicTrack = { id: string; title: string; mood: string; duration_seconds: number };
+type MusicTrack = { id: string; title: string; mood: string; duration_seconds: number; asset_key: string };
 type Step = 'Script' | 'Voice' | 'Music' | 'Thumbnail' | 'Review';
 
 const steps: Step[] = ['Script', 'Voice', 'Music', 'Thumbnail', 'Review'];
@@ -27,6 +27,9 @@ export default function StudioPage() {
   const [episodeId, setEpisodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState('Preparing your private creator workspace…');
   const [busy, setBusy] = useState<'narration' | 'thumbnail' | 'save' | 'publish' | null>(null);
+  const [hasSession, setHasSession] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     async function prepareStudio() {
@@ -39,18 +42,38 @@ export default function StudioPage() {
         }
         session = data.session;
       }
+      setHasSession(true);
       const { data: tracks, error: tracksError } = await supabase
         .from('music_tracks')
-        .select('id, title, mood, duration_seconds')
+        .select('id, title, mood, duration_seconds, asset_key')
         .order('title');
       if (tracksError) setNotice('Your workspace is ready, but soundtrack options could not load.');
       else {
         setMusic(tracks ?? []);
-        setNotice('Private guest workspace ready. Your work is saved to your Studio account.');
+        setNotice('Private Studio workspace ready. Your work is saved to your account.');
       }
     }
     void prepareStudio();
   }, []);
+
+  async function signIn() {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.session) {
+      setNotice(error?.message ?? 'Could not sign in.');
+      return;
+    }
+    window.location.reload();
+  }
+
+  async function signUp() {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+    if (data.session) window.location.reload();
+    else setNotice('Account created. Confirm the email, then sign in to generate and save episodes.');
+  }
 
   useEffect(() => {
     async function loadNarrationPreviews() {
@@ -188,6 +211,7 @@ export default function StudioPage() {
               <StepHeading eyebrow="03 / Music" title="Set the atmosphere." text="Choose a background score for this episode." />
               <div className="mt-7 space-y-2">{music.map((track) => <button key={track.id} onClick={() => setMusicTrackId(track.id)} className={`flex w-full items-center justify-between rounded-xl border p-4 text-left transition ${musicTrackId === track.id ? 'border-fm-red bg-fm-red/10' : 'border-fm-border hover:border-fm-border-bright'}`}><span><span className="block font-medium text-fm-primary">{track.title}</span><span className="mt-1 block text-xs text-fm-tertiary">{track.mood}</span></span><span className="text-xs text-fm-secondary">{musicTrackId === track.id ? 'Selected' : 'Select'}</span></button>)}</div>
               {!music.length && <p className="mt-7 rounded-xl bg-black/20 p-4 text-sm text-fm-tertiary">Loading soundtrack choices…</p>}
+              {selectedMusic && <div className="mt-4 rounded-xl border border-fm-border bg-black/20 p-4"><p className="mb-2 text-xs text-fm-tertiary">Preview: {selectedMusic.title}</p><audio controls preload="metadata" src={`/api/music/${selectedMusic.asset_key}`} className="w-full" /></div>}
               <NextButton onClick={() => setStep('Thumbnail')}>Create thumbnail</NextButton>
             </div>}
 
@@ -203,7 +227,7 @@ export default function StudioPage() {
               <div className="mt-7 divide-y divide-fm-divider rounded-xl border border-fm-divider bg-black/10">{[
                 ['Episode', title || 'Untitled episode'], ['Narration', narrationPaths.length ? `${selectedVoice?.label} · ${narrationPaths.length} generated part${narrationPaths.length === 1 ? '' : 's'}` : 'Not generated'], ['Background music', selectedMusic ? `${selectedMusic.title} · ${selectedMusic.mood}` : 'Not selected'], ['Thumbnail', thumbnailPath ? 'Generated and attached' : 'Not generated'],
               ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 p-4 text-sm"><span className="text-fm-tertiary">{label}</span><span className="text-right text-fm-primary">{value}</span></div>)}</div>
-              <EpisodePreview narrationUrls={narrationUrls} musicTrackId={musicTrackId} musicName={selectedMusic?.title} />
+              <EpisodePreview narrationUrls={narrationUrls} musicAssetKey={selectedMusic?.asset_key} musicName={selectedMusic?.title} />
               {blockers.length > 0 && <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">To publish, complete: {blockers.join(', ')}.</p>}
               <button onClick={() => void save('published')} disabled={busy !== null || blockers.length > 0} className="mt-6 rounded-full bg-fm-red px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busy === 'publish' ? 'Publishing…' : 'Publish episode'}</button>
             </div>}
@@ -212,6 +236,7 @@ export default function StudioPage() {
           <aside className="h-fit rounded-2xl border border-fm-divider bg-fm-surface p-5">
             <p className="text-xs font-medium tracking-[0.14em] text-fm-tertiary uppercase">Studio status</p>
             <p className="mt-3 text-sm leading-6 text-fm-secondary">{notice}</p>
+            {!hasSession && <div className="mt-5 space-y-2 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">Sign in to create</p><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="you@example.com" className="h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary outline-none focus:border-fm-border-bright" /><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Password" className="h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary outline-none focus:border-fm-border-bright" /><div className="flex gap-2"><button onClick={() => void signIn()} className="rounded-full bg-fm-red px-3 py-2 text-xs font-semibold text-white">Sign in</button><button onClick={() => void signUp()} className="rounded-full border border-fm-border px-3 py-2 text-xs font-semibold text-fm-secondary">Create account</button></div></div>}
             <div className="mt-6 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">What happens next?</p><p className="mt-2 text-xs leading-5 text-fm-tertiary">This same episode workflow is being designed so an MCP-connected AI agent can create it later — with your approval and the same secure backend.</p></div>
           </aside>
         </section>
@@ -228,53 +253,25 @@ function NextButton({ children, onClick }: { children: React.ReactNode; onClick:
   return <button onClick={onClick} className="mt-7 text-sm font-medium text-fm-secondary transition hover:text-fm-primary">{children} →</button>;
 }
 
-function EpisodePreview({ narrationUrls, musicTrackId, musicName }: { narrationUrls: string[]; musicTrackId: string; musicName?: string }) {
+function EpisodePreview({ narrationUrls, musicAssetKey, musicName }: { narrationUrls: string[]; musicAssetKey?: string; musicName?: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const contextRef = useRef<AudioContext | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const musicRef = useRef<OscillatorNode[]>([]);
+  const musicRef = useRef<HTMLAudioElement>(null);
   const [part, setPart] = useState(0);
   const [playing, setPlaying] = useState(false);
 
-  const noteByTrack: Record<string, number> = {
-    'night-drive': 110, 'soft-focus': 174.61, 'midnight-rain': 146.83,
-    'golden-hour': 196, 'quiet-tension': 116.54, 'city-lights': 130.81,
-  };
-
   function stopMusic() {
-    musicRef.current.forEach((node) => node.stop());
-    musicRef.current = [];
+    if (musicRef.current) musicRef.current.pause();
   }
 
   async function playMix() {
     const audio = audioRef.current;
-    if (!audio || !narrationUrls.length) return;
-    const context = contextRef.current ?? new window.AudioContext();
-    contextRef.current = context;
-    if (!sourceRef.current) {
-      sourceRef.current = context.createMediaElementSource(audio);
-      const voiceGain = context.createGain();
-      voiceGain.gain.value = 0.92;
-      sourceRef.current.connect(voiceGain).connect(context.destination);
-    }
-    await context.resume();
+    if (!audio || !musicRef.current || !narrationUrls.length || !musicAssetKey) return;
     stopMusic();
-    const musicGain = context.createGain();
-    musicGain.gain.value = 0.055;
-    musicGain.connect(context.destination);
-    const root = noteByTrack[musicTrackId] ?? 110;
-    const notes = [root, root * 1.4983];
-    musicRef.current = notes.map((frequency, index) => {
-      const oscillator = context.createOscillator();
-      oscillator.type = index ? 'triangle' : 'sine';
-      oscillator.frequency.value = frequency;
-      oscillator.connect(musicGain);
-      oscillator.start();
-      return oscillator;
-    });
     setPart(0);
     audio.currentTime = 0;
-    await audio.play();
+    musicRef.current.currentTime = 0;
+    musicRef.current.volume = 0.13;
+    await Promise.all([audio.play(), musicRef.current.play()]);
     setPlaying(true);
   }
 
@@ -282,13 +279,13 @@ function EpisodePreview({ narrationUrls, musicTrackId, musicName }: { narrationU
     const next = part + 1;
     if (next < narrationUrls.length) {
       setPart(next);
+      stopMusic();
+      setPlaying(false);
       return;
     }
     stopMusic();
     setPlaying(false);
   }
-
-  useEffect(() => () => stopMusic(), []);
 
   if (!narrationUrls.length) {
     return <div className="mt-5 rounded-xl border border-dashed border-fm-border p-4 text-sm text-fm-tertiary">Generate narration to unlock the listening preview.</div>;
@@ -297,8 +294,9 @@ function EpisodePreview({ narrationUrls, musicTrackId, musicName }: { narrationU
   return (
     <div className="mt-5 rounded-xl border border-fm-border bg-fm-surface-2 p-4">
       <p className="text-sm font-medium text-fm-primary">Listen before you publish</p>
-      <p className="mt-1 text-xs leading-5 text-fm-tertiary">Preview the narrated episode with the selected {musicName ?? 'background music'} bed. Adjust the script, voice or mood, then regenerate before publishing.</p>
+      <p className="mt-1 text-xs leading-5 text-fm-tertiary">Preview the narrated episode with the selected {musicName ?? 'background music'} track. Adjust the script, voice or mood, then regenerate before publishing.</p>
       <audio ref={audioRef} src={narrationUrls[part]} onEnded={onEnded} onPause={() => { if (playing) { stopMusic(); setPlaying(false); } }} className="mt-4 w-full" controls />
+      {musicAssetKey && <audio ref={musicRef} src={`/api/music/${musicAssetKey}`} preload="metadata" />}
       <div className="mt-3 flex items-center justify-between gap-3">
         <span className="text-xs text-fm-tertiary">Part {part + 1} of {narrationUrls.length}</span>
         <button onClick={() => void playMix()} className="rounded-full bg-fm-red px-4 py-2 text-xs font-semibold text-white hover:bg-red-700">{playing ? 'Restart mixed preview' : 'Play mixed preview'}</button>
