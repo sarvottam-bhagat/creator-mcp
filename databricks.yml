@@ -1,0 +1,31 @@
+bundle:
+  name: echofm-studio
+
+resources:
+  apps:
+    studio:
+      name: echofm-studio
+      description: EchoFM Studio — create, review, and publish AI audio episodes.
+      source_code_path: .
+      resources:
+        - name: supabase-url
+          secret:
+            scope: echofm-studio
+            key: supabase-url
+            permission: READ
+        - name: supabase-publishable-key
+          secret:
+            scope: echofm-studio
+            key: supabase-publishable-key
+            permission: READ
+        - name: openai-api-key
+          secret:
+            scope: echofm-studio
+            key: openai-api-key
+            permission: READ
+
+targets:
+  default:
+    default: true
+    workspace:
+      host: https://dbc-bc18c746-abe0.cloud.databricks.com

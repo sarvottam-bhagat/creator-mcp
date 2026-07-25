@@ -1,15 +1,12 @@
 command:
-  - node
-  - dist/mcp/mcp/index.js
+  - sh
+  - -c
+  - PORT=$DATABRICKS_APP_PORT npm run start
 
 env:
-  - name: PORT
-    value: "8000"
-  - name: MCP_PUBLIC_URL
-    valueFrom: mcp_public_url
   - name: NEXT_PUBLIC_SUPABASE_URL
-    valueFrom: supabase_url
+    valueFrom: supabase-url
   - name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-    valueFrom: supabase_publishable_key
+    valueFrom: supabase-publishable-key
   - name: OPENAI_API_KEY
-    valueFrom: openai_api_key
+    valueFrom: openai-api-key
