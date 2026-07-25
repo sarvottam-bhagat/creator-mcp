@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import TopBar from '@/components/TopBar';
+import { prepareGenerationPayload } from '@/lib/studio/generation-request';
 import { getPublishBlockers } from '@/lib/studio/publish';
 import { OPENAI_VOICES, type OpenAiVoice } from '@/lib/studio/voices';
 import { supabase } from '@/lib/supabase/client';
@@ -136,7 +137,7 @@ export default function StudioPage() {
     if (episodeId) {
       const { error } = await supabase.from('episodes').update(payload).eq('id', episodeId);
       if (error) throw error;
-      return;
+      return episodeId;
     }
     const { data: series, error: seriesError } = await supabase
       .from('series')
@@ -151,12 +152,14 @@ export default function StudioPage() {
       .single();
     if (episodeError || !episode) throw episodeError ?? new Error('Could not create an episode.');
     setEpisodeId(episode.id);
+    return episode.id;
   }
 
   async function generateNarration() {
     setBusy('narration');
     try {
-      const response = await fetch('/api/studio/generate', { method: 'POST', headers: await authHeader(), body: JSON.stringify({ kind: 'narration', script, voice }) });
+      const payload = await prepareGenerationPayload('narration', () => ensureEpisode('draft'));
+      const response = await fetch('/api/studio/generate', { method: 'POST', headers: await authHeader(), body: JSON.stringify(payload) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setNarrationPaths(data.paths);
@@ -169,7 +172,8 @@ export default function StudioPage() {
   async function generateThumbnail() {
     setBusy('thumbnail');
     try {
-      const response = await fetch('/api/studio/generate', { method: 'POST', headers: await authHeader(), body: JSON.stringify({ kind: 'thumbnail', prompt: thumbnailPrompt }) });
+      const payload = await prepareGenerationPayload('thumbnail', () => ensureEpisode('draft'), thumbnailPrompt);
+      const response = await fetch('/api/studio/generate', { method: 'POST', headers: await authHeader(), body: JSON.stringify(payload) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setThumbnailPath(data.path);
