@@ -19,6 +19,8 @@ export type Series = {
   ageRating: string;
   /** Present only on hero titles. */
   tagline?: string;
+  /** Optional wide artwork used by the home-page hero. */
+  banner?: string;
 };
 
 export type Row = {
