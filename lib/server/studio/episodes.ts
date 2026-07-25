@@ -139,8 +139,10 @@ export function createSupabaseEpisodeRepository(context: StudioContext): Episode
     async listEpisodes(filter = {}) {
       let query = supabase
         .from('episodes')
-        .select(`${EPISODE_COLUMNS}, series!inner(creator_id)`)
-        .eq('series.creator_id', user.id)
+        // RLS already restricts episodes through their creator-owned series.
+        // Avoid an embedded-relation filter here so OAuth-issued tokens use
+        // the same reliable read path as the Studio client.
+        .select(EPISODE_COLUMNS)
         .order('created_at', { ascending: false });
       if (filter.seriesId) query = query.eq('series_id', filter.seriesId);
       if (filter.status) query = query.eq('status', filter.status);
@@ -152,9 +154,8 @@ export function createSupabaseEpisodeRepository(context: StudioContext): Episode
     async findEpisode(id) {
       const { data, error } = await supabase
         .from('episodes')
-        .select(`${EPISODE_COLUMNS}, series!inner(creator_id)`)
+        .select(EPISODE_COLUMNS)
         .eq('id', id)
-        .eq('series.creator_id', user.id)
         .maybeSingle();
       dependencyError(error, 'EchoFM could not load that episode.');
       return data as unknown as EpisodeRecord | null;
