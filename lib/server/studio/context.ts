@@ -9,11 +9,24 @@ export type StudioContextConfig = {
 
 export type StudioContext = {
   accessToken: string;
+  expiresAt: number;
   supabase: SupabaseClient;
   user: User;
 };
 
 type SupabaseFactory = typeof createClient;
+
+function readTokenExpiration(accessToken: string) {
+  try {
+    const payload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString('utf8')) as {
+      exp?: unknown;
+    };
+    if (typeof payload.exp === 'number' && Number.isFinite(payload.exp)) return payload.exp;
+  } catch {
+    // The verified token still needs an expiry before it is accepted by the MCP resource server.
+  }
+  throw new StudioError('unauthorized', 'Your EchoFM authorization is invalid or expired.', 401);
+}
 
 export async function createStudioContext(
   accessToken: string,
@@ -41,6 +54,7 @@ export async function createStudioContext(
 
   return {
     accessToken,
+    expiresAt: readTokenExpiration(accessToken),
     supabase,
     user: data.user,
   };
