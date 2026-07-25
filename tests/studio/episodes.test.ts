@@ -61,6 +61,9 @@ function repository(initialEpisode: EpisodeRecord | null = null): EpisodeReposit
       current = current ? { ...current, ...patch } : null;
       return current;
     }),
+    listMusicTracks: vi.fn().mockResolvedValue([
+      { id: 'night-drive', title: 'Night Drive', mood: 'Cinematic', duration_seconds: 138, asset_key: 'a-tales' },
+    ]),
     findMusicTrack: vi.fn().mockImplementation(async (id) =>
       id === 'night-drive'
         ? { id, title: 'Night Drive', mood: 'Cinematic', duration_seconds: 138, asset_key: 'a-tales' }

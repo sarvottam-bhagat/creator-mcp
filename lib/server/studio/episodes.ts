@@ -68,6 +68,7 @@ export interface EpisodeRepository {
   findEpisode(id: string): Promise<EpisodeRecord | null>;
   createEpisode(input: CreateEpisodeRow): Promise<EpisodeRecord>;
   updateEpisode(id: string, patch: EpisodePatch): Promise<EpisodeRecord | null>;
+  listMusicTracks(): Promise<MusicTrackRecord[]>;
   findMusicTrack(id: string): Promise<MusicTrackRecord | null>;
 }
 
@@ -189,6 +190,15 @@ export function createSupabaseEpisodeRepository(context: StudioContext): Episode
         .maybeSingle();
       dependencyError(error, 'EchoFM could not check that soundtrack.');
       return data as MusicTrackRecord | null;
+    },
+
+    async listMusicTracks() {
+      const { data, error } = await supabase
+        .from('music_tracks')
+        .select(MUSIC_COLUMNS)
+        .order('title');
+      dependencyError(error, 'EchoFM could not load the soundtrack catalog.');
+      return (data ?? []) as MusicTrackRecord[];
     },
   };
 }
