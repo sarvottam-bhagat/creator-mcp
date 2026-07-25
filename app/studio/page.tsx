@@ -8,6 +8,15 @@ import { OPENAI_VOICES, type OpenAiVoice } from '@/lib/studio/voices';
 import { supabase } from '@/lib/supabase/client';
 
 type MusicTrack = { id: string; title: string; mood: string; duration_seconds: number; asset_key: string };
+type PublishedEpisode = {
+  id: string;
+  title: string;
+  voice: string | null;
+  narration_paths: string[];
+  thumbnail_path: string | null;
+  published_at: string | null;
+  music_tracks: Pick<MusicTrack, 'title' | 'mood' | 'asset_key'> | null;
+};
 type Step = 'Script' | 'Voice' | 'Music' | 'Thumbnail' | 'Review';
 
 const steps: Step[] = ['Script', 'Voice', 'Music', 'Thumbnail', 'Review'];
@@ -30,6 +39,16 @@ export default function StudioPage() {
   const [hasSession, setHasSession] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [publishedEpisodes, setPublishedEpisodes] = useState<PublishedEpisode[]>([]);
+
+  async function loadPublishedEpisodes() {
+    const { data, error } = await supabase
+      .from('episodes')
+      .select('id, title, voice, narration_paths, thumbnail_path, published_at, music_tracks(title, mood, asset_key)')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false });
+    if (!error) setPublishedEpisodes((data ?? []) as unknown as PublishedEpisode[]);
+  }
 
   useEffect(() => {
     async function prepareStudio() {
@@ -57,6 +76,7 @@ export default function StudioPage() {
       if (tracksError) setNotice('Your workspace is ready, but soundtrack options could not load.');
       else {
         setMusic(tracks ?? []);
+        await loadPublishedEpisodes();
         setNotice('Private Studio workspace ready. Your work is saved to your account.');
       }
     }
@@ -171,6 +191,7 @@ export default function StudioPage() {
     setBusy(status === 'published' ? 'publish' : 'save');
     try {
       await ensureEpisode(status);
+      if (status === 'published') await loadPublishedEpisodes();
       setNotice(status === 'published' ? 'Episode published — it is ready for your audience.' : 'Draft saved to Studio.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Your changes could not be saved.');
@@ -247,6 +268,18 @@ export default function StudioPage() {
             <div className="mt-6 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">What happens next?</p><p className="mt-2 text-xs leading-5 text-fm-tertiary">This same episode workflow is being designed so an MCP-connected AI agent can create it later — with your approval and the same secure backend.</p></div>
           </aside>
         </section>
+
+        <section className="mt-10 border-t border-fm-divider pt-10" aria-labelledby="published-episodes-heading">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-medium tracking-[0.16em] text-fm-red uppercase">Your catalog</p>
+              <h2 id="published-episodes-heading" className="mt-2 text-2xl font-semibold text-fm-primary">Published episodes</h2>
+              <p className="mt-2 text-sm text-fm-tertiary">Every live episode is kept here, ready to play and review.</p>
+            </div>
+            <span className="text-sm text-fm-tertiary">{publishedEpisodes.length} published</span>
+          </div>
+          {!hasSession ? <p className="mt-6 rounded-xl border border-dashed border-fm-border p-5 text-sm text-fm-tertiary">Sign in to view your published catalog.</p> : publishedEpisodes.length ? <div className="mt-6 grid gap-5 lg:grid-cols-2">{publishedEpisodes.map((episode) => <PublishedEpisodeCard key={episode.id} episode={episode} />)}</div> : <div className="mt-6 rounded-2xl border border-dashed border-fm-border bg-fm-surface p-6 text-sm text-fm-tertiary">Your published episodes will appear here after you go live.</div>}
+        </section>
       </main>
     </>
   );
@@ -260,7 +293,7 @@ function NextButton({ children, onClick }: { children: React.ReactNode; onClick:
   return <button onClick={onClick} className="mt-7 text-sm font-medium text-fm-secondary transition hover:text-fm-primary">{children} →</button>;
 }
 
-function EpisodePreview({ narrationUrls, musicAssetKey, musicName }: { narrationUrls: string[]; musicAssetKey?: string; musicName?: string }) {
+function EpisodePreview({ narrationUrls, musicAssetKey, musicName, heading = 'Listen before you publish', description }: { narrationUrls: string[]; musicAssetKey?: string; musicName?: string; heading?: string; description?: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const musicRef = useRef<HTMLAudioElement>(null);
   const [part, setPart] = useState(0);
@@ -300,8 +333,8 @@ function EpisodePreview({ narrationUrls, musicAssetKey, musicName }: { narration
 
   return (
     <div className="mt-5 rounded-xl border border-fm-border bg-fm-surface-2 p-4">
-      <p className="text-sm font-medium text-fm-primary">Listen before you publish</p>
-      <p className="mt-1 text-xs leading-5 text-fm-tertiary">Preview the narrated episode with the selected {musicName ?? 'background music'} track. Adjust the script, voice or mood, then regenerate before publishing.</p>
+      <p className="text-sm font-medium text-fm-primary">{heading}</p>
+      <p className="mt-1 text-xs leading-5 text-fm-tertiary">{description ?? `Preview the narrated episode with the selected ${musicName ?? 'background music'} track. Adjust the script, voice or mood, then regenerate before publishing.`}</p>
       <audio ref={audioRef} src={narrationUrls[part]} onEnded={onEnded} onPause={() => { if (playing) { stopMusic(); setPlaying(false); } }} className="mt-4 w-full" controls />
       {musicAssetKey && <audio ref={musicRef} src={`/api/music/${musicAssetKey}`} preload="metadata" />}
       <div className="mt-3 flex items-center justify-between gap-3">
@@ -310,4 +343,29 @@ function EpisodePreview({ narrationUrls, musicAssetKey, musicName }: { narration
       </div>
     </div>
   );
+}
+
+function PublishedEpisodeCard({ episode }: { episode: PublishedEpisode }) {
+  const [narrationUrls, setNarrationUrls] = useState<string[]>([]);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadAssets() {
+      const [{ data: audio }, { data: image }] = await Promise.all([
+        supabase.storage.from('episode-audio').createSignedUrls(episode.narration_paths, 60 * 60),
+        episode.thumbnail_path ? supabase.storage.from('episode-images').createSignedUrl(episode.thumbnail_path, 60 * 60) : Promise.resolve({ data: null }),
+      ]);
+      setNarrationUrls((audio ?? []).map((item) => item.signedUrl).filter((url): url is string => Boolean(url)));
+      setThumbnailUrl(image?.signedUrl ?? null);
+    }
+    void loadAssets();
+  }, [episode]);
+
+  return <article className="overflow-hidden rounded-2xl border border-fm-divider bg-fm-surface p-5">
+    <div className="flex gap-4">
+      {thumbnailUrl ? <img src={thumbnailUrl} alt={`Cover art for ${episode.title}`} className="size-20 rounded-xl object-cover" /> : <div className="flex size-20 shrink-0 items-center justify-center rounded-xl bg-fm-surface-2 text-xs text-fm-tertiary">EchoFM</div>}
+      <div className="min-w-0"><p className="text-xs text-fm-tertiary">Published {episode.published_at ? new Date(episode.published_at).toLocaleDateString() : 'today'}</p><h3 className="mt-1 truncate text-lg font-semibold text-fm-primary">{episode.title}</h3><p className="mt-1 text-xs text-fm-secondary">{episode.voice ? `${episode.voice[0].toUpperCase()}${episode.voice.slice(1)} narration` : 'Narration'} · {episode.music_tracks?.title ?? 'No music'}</p></div>
+    </div>
+    <EpisodePreview narrationUrls={narrationUrls} musicAssetKey={episode.music_tracks?.asset_key} musicName={episode.music_tracks?.title} heading="Play episode" description={`Play the published narration with ${episode.music_tracks?.title ?? 'its selected background music'}.`} />
+  </article>;
 }
