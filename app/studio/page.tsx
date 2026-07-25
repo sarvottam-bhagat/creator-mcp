@@ -34,6 +34,13 @@ export default function StudioPage() {
   useEffect(() => {
     async function prepareStudio() {
       let { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          await supabase.auth.signOut();
+          session = null;
+        }
+      }
       if (!session) {
         const { data, error } = await supabase.auth.signInAnonymously();
         if (error || !data.session) {
