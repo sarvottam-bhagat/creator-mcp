@@ -38,9 +38,6 @@ export default function StudioPage() {
   const [notice, setNotice] = useState('Preparing your private creator workspace…');
   const [busy, setBusy] = useState<'narration' | 'thumbnail' | 'save' | 'publish' | null>(null);
   const [hasSession, setHasSession] = useState(false);
-  const [accountEmail, setAccountEmail] = useState<string | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [publishedEpisodes, setPublishedEpisodes] = useState<PublishedEpisode[]>([]);
 
   async function loadPublishedEpisodes() {
@@ -64,14 +61,12 @@ export default function StudioPage() {
       }
       if (!session) {
         setHasSession(false);
-        setAccountEmail(null);
-        setNotice('Sign in with Google to create, save, and publish episodes in your private Studio.');
+        setNotice('Sign in from your Profile to create, save, and publish episodes in your private Studio.');
         return;
       }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setHasSession(true);
-      setAccountEmail(user.email ?? null);
       const { data: tracks, error: tracksError } = await supabase
         .from('music_tracks')
         .select('id, title, mood, duration_seconds, asset_key')
@@ -85,46 +80,6 @@ export default function StudioPage() {
     }
     void prepareStudio();
   }, []);
-
-  async function signIn() {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.session) {
-      setNotice(error?.message ?? 'Could not sign in.');
-      return;
-    }
-    window.location.reload();
-  }
-
-  async function signUp() {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setNotice(error.message);
-      return;
-    }
-    if (data.session) window.location.reload();
-    else setNotice('Account created. Confirm the email, then sign in to generate and save episodes.');
-  }
-
-  async function signInWithGoogle() {
-    setNotice('Opening Google sign-in…');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/studio` },
-    });
-    if (error) setNotice(error.message);
-  }
-
-  async function signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      setNotice(error.message);
-      return;
-    }
-    setHasSession(false);
-    setAccountEmail(null);
-    setPublishedEpisodes([]);
-    setNotice('Signed out. Sign in with Google to return to your private Studio.');
-  }
 
   useEffect(() => {
     async function loadNarrationPreviews() {
@@ -241,8 +196,7 @@ export default function StudioPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/studio/connections" className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">Connected agents</Link>
-            {hasSession && <button onClick={() => void signOut()} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">Sign out</button>}
-            <button onClick={() => void save('draft')} disabled={busy !== null} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save draft'}</button>
+            <button onClick={() => void save('draft')} disabled={busy !== null || !hasSession} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save draft'}</button>
           </div>
         </div>
 
@@ -263,7 +217,7 @@ export default function StudioPage() {
             {step === 'Voice' && <div>
               <StepHeading eyebrow="02 / Voice" title="Cast your narrator." text="Choose one of the available OpenAI text-to-speech voices." />
               <div className="mt-7 grid gap-2 sm:grid-cols-2">{OPENAI_VOICES.map((item) => <button key={item.id} onClick={() => setVoice(item.id)} className={`rounded-xl border p-4 text-left transition ${voice === item.id ? 'border-fm-red bg-fm-red/10' : 'border-fm-border bg-black/10 hover:border-fm-border-bright'}`}><p className="font-medium text-fm-primary">{item.label}</p><p className="mt-1 text-xs text-fm-tertiary">{item.description}</p></button>)}</div>
-              <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => void generateNarration()} disabled={busy !== null || !script.trim()} className="rounded-full bg-fm-red px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">{busy === 'narration' ? 'Generating narration…' : narrationPaths.length ? 'Regenerate narration' : `Generate with ${selectedVoice?.label}`}</button><NextButton onClick={() => setStep('Music')}>Choose music</NextButton></div>
+              <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => void generateNarration()} disabled={busy !== null || !script.trim() || !hasSession} className="rounded-full bg-fm-red px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">{busy === 'narration' ? 'Generating narration…' : narrationPaths.length ? 'Regenerate narration' : `Generate with ${selectedVoice?.label}`}</button><NextButton onClick={() => setStep('Music')}>Choose music</NextButton></div>
             </div>}
 
             {step === 'Music' && <div>
@@ -277,7 +231,7 @@ export default function StudioPage() {
             {step === 'Thumbnail' && <div>
               <StepHeading eyebrow="04 / Thumbnail" title="Give it a face." text="Describe cover art and GPT Image will create a thumbnail for your episode." />
               <label className="mt-7 block text-sm font-medium text-fm-secondary">Thumbnail prompt<textarea value={thumbnailPrompt} onChange={(event) => setThumbnailPrompt(event.target.value)} rows={5} className="mt-2 w-full resize-y rounded-xl border border-fm-border bg-black/20 p-3 leading-7 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
-              <div className="mt-5 flex flex-wrap items-center gap-4">{thumbnailUrl ? <img src={thumbnailUrl} alt="Generated episode thumbnail" className="size-28 rounded-xl object-cover" /> : <div className="flex size-28 items-center justify-center rounded-xl border border-dashed border-fm-border text-xs text-fm-tertiary">Cover art</div>}<button onClick={() => void generateThumbnail()} disabled={busy !== null || !thumbnailPrompt.trim()} className="rounded-full bg-fm-red px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{busy === 'thumbnail' ? 'Creating thumbnail…' : thumbnailPath ? 'Regenerate thumbnail' : 'Generate thumbnail'}</button></div>
+              <div className="mt-5 flex flex-wrap items-center gap-4">{thumbnailUrl ? <img src={thumbnailUrl} alt="Generated episode thumbnail" className="size-28 rounded-xl object-cover" /> : <div className="flex size-28 items-center justify-center rounded-xl border border-dashed border-fm-border text-xs text-fm-tertiary">Cover art</div>}<button onClick={() => void generateThumbnail()} disabled={busy !== null || !thumbnailPrompt.trim() || !hasSession} className="rounded-full bg-fm-red px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{busy === 'thumbnail' ? 'Creating thumbnail…' : thumbnailPath ? 'Regenerate thumbnail' : 'Generate thumbnail'}</button></div>
               <NextButton onClick={() => setStep('Review')}>Review episode</NextButton>
             </div>}
 
@@ -288,15 +242,14 @@ export default function StudioPage() {
               ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 p-4 text-sm"><span className="text-fm-tertiary">{label}</span><span className="text-right text-fm-primary">{value}</span></div>)}</div>
               <EpisodePreview narrationUrls={narrationUrls} musicAssetKey={selectedMusic?.asset_key} musicName={selectedMusic?.title} />
               {blockers.length > 0 && <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">To publish, complete: {blockers.join(', ')}.</p>}
-              <button onClick={() => void save('published')} disabled={busy !== null || blockers.length > 0} className="mt-6 rounded-full bg-fm-red px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busy === 'publish' ? 'Publishing…' : 'Publish episode'}</button>
+              <button onClick={() => void save('published')} disabled={busy !== null || blockers.length > 0 || !hasSession} className="mt-6 rounded-full bg-fm-red px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busy === 'publish' ? 'Publishing…' : 'Publish episode'}</button>
             </div>}
           </div>
 
           <aside className="h-fit rounded-2xl border border-fm-divider bg-fm-surface p-5">
             <p className="text-xs font-medium tracking-[0.14em] text-fm-tertiary uppercase">Studio status</p>
             <p className="mt-3 text-sm leading-6 text-fm-secondary">{notice}</p>
-            {!hasSession && <div className="mt-5 space-y-3 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">Sign in to create</p><button onClick={() => void signInWithGoogle()} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-black transition hover:bg-zinc-200"><span className="text-base" aria-hidden="true">G</span>Continue with Google</button><div className="flex items-center gap-3 text-xs text-fm-tertiary before:h-px before:flex-1 before:bg-fm-divider after:h-px after:flex-1 after:bg-fm-divider">or use email</div><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="you@example.com" className="h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary outline-none focus:border-fm-border-bright" /><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Password" className="h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary outline-none focus:border-fm-border-bright" /><div className="flex gap-2"><button onClick={() => void signIn()} className="rounded-full bg-fm-red px-3 py-2 text-xs font-semibold text-white">Sign in</button><button onClick={() => void signUp()} className="rounded-full border border-fm-border px-3 py-2 text-xs font-semibold text-fm-secondary">Create account</button></div></div>}
-            {hasSession && <p className="mt-5 border-t border-fm-divider pt-5 text-xs text-fm-tertiary">Signed in as {accountEmail ?? 'your Google account'}.</p>}
+            {!hasSession && <Link href="/profile" className="mt-5 inline-flex rounded-full border border-fm-border px-4 py-2 text-xs font-semibold text-fm-secondary transition hover:border-fm-border-bright hover:text-fm-primary">Go to Profile to sign in</Link>}
             <div className="mt-6 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">What happens next?</p><p className="mt-2 text-xs leading-5 text-fm-tertiary">This same episode workflow is being designed so an MCP-connected AI agent can create it later — with your approval and the same secure backend.</p></div>
           </aside>
         </section>
