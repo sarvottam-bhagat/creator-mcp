@@ -1,37 +1,212 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import TopBar from '@/components/TopBar';
+import { getPublishBlockers } from '@/lib/studio/publish';
+import { OPENAI_VOICES, type OpenAiVoice } from '@/lib/studio/voices';
+import { supabase } from '@/lib/supabase/client';
 
-export const metadata = { title: 'Studio — EchoFM' };
+type MusicTrack = { id: string; title: string; mood: string; duration_seconds: number };
+type Step = 'Script' | 'Voice' | 'Music' | 'Thumbnail' | 'Review';
 
-/**
- * Placeholder. The creator dashboard (series list, episode table, draft flow)
- * lands here in Phase 1; for now the rail entry needs a destination.
- */
+const steps: Step[] = ['Script', 'Voice', 'Music', 'Thumbnail', 'Review'];
+
 export default function StudioPage() {
+  const [step, setStep] = useState<Step>('Script');
+  const [title, setTitle] = useState('Episode 1 — The first signal');
+  const [script, setScript] = useState('The rain began just after midnight. In the quiet between thunderclaps, Maya heard a voice on the old radio — a voice that knew her name.');
+  const [voice, setVoice] = useState<OpenAiVoice>('marin');
+  const [music, setMusic] = useState<MusicTrack[]>([]);
+  const [musicTrackId, setMusicTrackId] = useState('night-drive');
+  const [thumbnailPrompt, setThumbnailPrompt] = useState('A cinematic midnight city rooftop in rain, a glowing vintage radio on a ledge, deep violet and crimson light, atmospheric audio drama cover art, no text');
+  const [thumbnailPath, setThumbnailPath] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [narrationPaths, setNarrationPaths] = useState<string[]>([]);
+  const [episodeId, setEpisodeId] = useState<string | null>(null);
+  const [notice, setNotice] = useState('Preparing your private creator workspace…');
+  const [busy, setBusy] = useState<'narration' | 'thumbnail' | 'save' | 'publish' | null>(null);
+
+  useEffect(() => {
+    async function prepareStudio() {
+      let { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error || !data.session) {
+          setNotice('Sign-in is required before saving or generating. Enable Anonymous Sign-Ins in Supabase Auth to use Studio as a guest.');
+          return;
+        }
+        session = data.session;
+      }
+      const { data: tracks, error: tracksError } = await supabase
+        .from('music_tracks')
+        .select('id, title, mood, duration_seconds')
+        .order('title');
+      if (tracksError) setNotice('Your workspace is ready, but soundtrack options could not load.');
+      else {
+        setMusic(tracks ?? []);
+        setNotice('Private guest workspace ready. Your work is saved to your Studio account.');
+      }
+    }
+    void prepareStudio();
+  }, []);
+
+  const blockers = useMemo(
+    () => getPublishBlockers({ title, script, voice, musicTrackId, narrationPaths, thumbnailPath }),
+    [title, script, voice, musicTrackId, narrationPaths, thumbnailPath],
+  );
+
+  async function authHeader() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Please sign in to use Studio.');
+    return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' };
+  }
+
+  async function ensureEpisode(status: 'draft' | 'published') {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Please sign in to save an episode.');
+    const now = status === 'published' ? new Date().toISOString() : null;
+    const payload = { title: title.trim() || 'Untitled episode', script, voice, music_track_id: musicTrackId || null, narration_paths: narrationPaths, thumbnail_path: thumbnailPath, thumbnail_prompt: thumbnailPrompt, status, published_at: now };
+    if (episodeId) {
+      const { error } = await supabase.from('episodes').update(payload).eq('id', episodeId);
+      if (error) throw error;
+      return;
+    }
+    const { data: series, error: seriesError } = await supabase
+      .from('series')
+      .insert({ creator_id: user.id, title: 'My EchoFM series' })
+      .select('id')
+      .single();
+    if (seriesError || !series) throw seriesError ?? new Error('Could not create a series.');
+    const { data: episode, error: episodeError } = await supabase
+      .from('episodes')
+      .insert({ ...payload, series_id: series.id })
+      .select('id')
+      .single();
+    if (episodeError || !episode) throw episodeError ?? new Error('Could not create an episode.');
+    setEpisodeId(episode.id);
+  }
+
+  async function generateNarration() {
+    setBusy('narration');
+    try {
+      const response = await fetch('/api/studio/generate', { method: 'POST', headers: await authHeader(), body: JSON.stringify({ kind: 'narration', script, voice }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setNarrationPaths(data.paths);
+      setNotice(`Narration created in ${data.paths.length} audio part${data.paths.length === 1 ? '' : 's'}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Narration could not be created.');
+    } finally { setBusy(null); }
+  }
+
+  async function generateThumbnail() {
+    setBusy('thumbnail');
+    try {
+      const response = await fetch('/api/studio/generate', { method: 'POST', headers: await authHeader(), body: JSON.stringify({ kind: 'thumbnail', prompt: thumbnailPrompt }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setThumbnailPath(data.path);
+      const { data: signed, error } = await supabase.storage.from('episode-images').createSignedUrl(data.path, 60 * 60);
+      if (error) throw error;
+      setThumbnailUrl(signed.signedUrl);
+      setNotice('Your thumbnail is ready.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Thumbnail could not be created.');
+    } finally { setBusy(null); }
+  }
+
+  async function save(status: 'draft' | 'published') {
+    if (status === 'published' && blockers.length) {
+      setStep('Review');
+      setNotice(`Finish ${blockers.join(', ')} before publishing.`);
+      return;
+    }
+    setBusy(status === 'published' ? 'publish' : 'save');
+    try {
+      await ensureEpisode(status);
+      setNotice(status === 'published' ? 'Episode published — it is ready for your audience.' : 'Draft saved to Studio.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Your changes could not be saved.');
+    } finally { setBusy(null); }
+  }
+
+  const selectedMusic = music.find((track) => track.id === musicTrackId);
+  const selectedVoice = OPENAI_VOICES.find((item) => item.id === voice);
+
   return (
     <>
-      <TopBar />
-      <main className="flex min-h-[70vh] flex-col items-center justify-center px-8 text-center">
-        <span className="flex size-14 items-center justify-center rounded-2xl bg-fm-surface-2 text-fm-tertiary">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="size-7"
-            aria-hidden
-          >
-            <path d="M4 20h5l10.5-10.5a2.1 2.1 0 0 0-3-3L6 17v3z" />
-            <path d="M14.5 6.5 17.5 9.5" />
-          </svg>
-        </span>
-        <h1 className="mt-5 text-2xl font-semibold text-fm-primary">Studio</h1>
-        <p className="mt-2 max-w-md text-sm text-fm-tertiary">
-          The creator workspace lives here — series, episodes and drafts.
-          Nothing to see yet.
-        </p>
+      <TopBar userName="Creator" />
+      <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-8">
+        <div className="mb-8 flex flex-col gap-5 border-b border-fm-divider pb-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <Link href="/" className="text-xs text-fm-tertiary transition hover:text-fm-primary">← Back to EchoFM</Link>
+            <p className="mt-4 text-xs font-medium tracking-[0.18em] text-fm-red uppercase">EchoFM Studio</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-fm-primary sm:text-4xl">Make your next audio episode.</h1>
+            <p className="mt-2 max-w-2xl text-sm text-fm-tertiary">Write, narrate, score and package an episode in one private creator workspace.</p>
+          </div>
+          <button onClick={() => void save('draft')} disabled={busy !== null} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save draft'}</button>
+        </div>
+
+        <ol className="mb-8 grid grid-cols-5 gap-1 rounded-2xl border border-fm-divider bg-fm-surface p-2" aria-label="Episode creation steps">
+          {steps.map((item, index) => <li key={item}><button onClick={() => setStep(item)} className={`w-full rounded-xl px-2 py-3 text-left text-xs transition sm:px-3 sm:text-sm ${step === item ? 'bg-fm-elevated text-fm-primary' : 'text-fm-tertiary hover:bg-white/5 hover:text-fm-secondary'}`}><span className="mr-2 text-fm-red">0{index + 1}</span><span className="hidden sm:inline">{item}</span></button></li>)}
+        </ol>
+
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="rounded-2xl border border-fm-divider bg-fm-surface p-5 sm:p-7">
+            {step === 'Script' && <div>
+              <StepHeading eyebrow="01 / Script" title="Start with the story." text="Your script is the source for your OpenAI narration." />
+              <label className="mt-7 block text-sm font-medium text-fm-secondary">Episode title<input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-fm-border bg-black/20 px-3 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
+              <label className="mt-5 block text-sm font-medium text-fm-secondary">Narration script<textarea value={script} onChange={(event) => setScript(event.target.value)} rows={12} className="mt-2 w-full resize-y rounded-xl border border-fm-border bg-black/20 p-3 leading-7 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
+              <p className="mt-2 text-xs text-fm-tertiary">{script.length.toLocaleString()} characters · long scripts are automatically split into narrated parts.</p>
+              <NextButton onClick={() => setStep('Voice')}>Choose a voice</NextButton>
+            </div>}
+
+            {step === 'Voice' && <div>
+              <StepHeading eyebrow="02 / Voice" title="Cast your narrator." text="Choose one of the available OpenAI text-to-speech voices." />
+              <div className="mt-7 grid gap-2 sm:grid-cols-2">{OPENAI_VOICES.map((item) => <button key={item.id} onClick={() => setVoice(item.id)} className={`rounded-xl border p-4 text-left transition ${voice === item.id ? 'border-fm-red bg-fm-red/10' : 'border-fm-border bg-black/10 hover:border-fm-border-bright'}`}><p className="font-medium text-fm-primary">{item.label}</p><p className="mt-1 text-xs text-fm-tertiary">{item.description}</p></button>)}</div>
+              <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => void generateNarration()} disabled={busy !== null || !script.trim()} className="rounded-full bg-fm-red px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">{busy === 'narration' ? 'Generating narration…' : narrationPaths.length ? 'Regenerate narration' : `Generate with ${selectedVoice?.label}`}</button><NextButton onClick={() => setStep('Music')}>Choose music</NextButton></div>
+            </div>}
+
+            {step === 'Music' && <div>
+              <StepHeading eyebrow="03 / Music" title="Set the atmosphere." text="Choose a background score for this episode." />
+              <div className="mt-7 space-y-2">{music.map((track) => <button key={track.id} onClick={() => setMusicTrackId(track.id)} className={`flex w-full items-center justify-between rounded-xl border p-4 text-left transition ${musicTrackId === track.id ? 'border-fm-red bg-fm-red/10' : 'border-fm-border hover:border-fm-border-bright'}`}><span><span className="block font-medium text-fm-primary">{track.title}</span><span className="mt-1 block text-xs text-fm-tertiary">{track.mood}</span></span><span className="text-xs text-fm-secondary">{musicTrackId === track.id ? 'Selected' : 'Select'}</span></button>)}</div>
+              {!music.length && <p className="mt-7 rounded-xl bg-black/20 p-4 text-sm text-fm-tertiary">Loading soundtrack choices…</p>}
+              <NextButton onClick={() => setStep('Thumbnail')}>Create thumbnail</NextButton>
+            </div>}
+
+            {step === 'Thumbnail' && <div>
+              <StepHeading eyebrow="04 / Thumbnail" title="Give it a face." text="Describe cover art and GPT Image will create a thumbnail for your episode." />
+              <label className="mt-7 block text-sm font-medium text-fm-secondary">Thumbnail prompt<textarea value={thumbnailPrompt} onChange={(event) => setThumbnailPrompt(event.target.value)} rows={5} className="mt-2 w-full resize-y rounded-xl border border-fm-border bg-black/20 p-3 leading-7 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
+              <div className="mt-5 flex flex-wrap items-center gap-4">{thumbnailUrl ? <img src={thumbnailUrl} alt="Generated episode thumbnail" className="size-28 rounded-xl object-cover" /> : <div className="flex size-28 items-center justify-center rounded-xl border border-dashed border-fm-border text-xs text-fm-tertiary">Cover art</div>}<button onClick={() => void generateThumbnail()} disabled={busy !== null || !thumbnailPrompt.trim()} className="rounded-full bg-fm-red px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{busy === 'thumbnail' ? 'Creating thumbnail…' : thumbnailPath ? 'Regenerate thumbnail' : 'Generate thumbnail'}</button></div>
+              <NextButton onClick={() => setStep('Review')}>Review episode</NextButton>
+            </div>}
+
+            {step === 'Review' && <div>
+              <StepHeading eyebrow="05 / Review" title="Ready to go live?" text="Review every creator choice before publishing." />
+              <div className="mt-7 divide-y divide-fm-divider rounded-xl border border-fm-divider bg-black/10">{[
+                ['Episode', title || 'Untitled episode'], ['Narration', narrationPaths.length ? `${selectedVoice?.label} · ${narrationPaths.length} generated part${narrationPaths.length === 1 ? '' : 's'}` : 'Not generated'], ['Background music', selectedMusic ? `${selectedMusic.title} · ${selectedMusic.mood}` : 'Not selected'], ['Thumbnail', thumbnailPath ? 'Generated and attached' : 'Not generated'],
+              ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 p-4 text-sm"><span className="text-fm-tertiary">{label}</span><span className="text-right text-fm-primary">{value}</span></div>)}</div>
+              {blockers.length > 0 && <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">To publish, complete: {blockers.join(', ')}.</p>}
+              <button onClick={() => void save('published')} disabled={busy !== null || blockers.length > 0} className="mt-6 rounded-full bg-fm-red px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busy === 'publish' ? 'Publishing…' : 'Publish episode'}</button>
+            </div>}
+          </div>
+
+          <aside className="h-fit rounded-2xl border border-fm-divider bg-fm-surface p-5">
+            <p className="text-xs font-medium tracking-[0.14em] text-fm-tertiary uppercase">Studio status</p>
+            <p className="mt-3 text-sm leading-6 text-fm-secondary">{notice}</p>
+            <div className="mt-6 border-t border-fm-divider pt-5"><p className="text-sm font-medium text-fm-primary">What happens next?</p><p className="mt-2 text-xs leading-5 text-fm-tertiary">This same episode workflow is being designed so an MCP-connected AI agent can create it later — with your approval and the same secure backend.</p></div>
+          </aside>
+        </section>
       </main>
     </>
   );
+}
+
+function StepHeading({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) {
+  return <><p className="text-xs font-medium tracking-[0.16em] text-fm-red uppercase">{eyebrow}</p><h2 className="mt-3 text-2xl font-semibold text-fm-primary">{title}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-fm-tertiary">{text}</p></>;
+}
+
+function NextButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return <button onClick={onClick} className="mt-7 text-sm font-medium text-fm-secondary transition hover:text-fm-primary">{children} →</button>;
 }
