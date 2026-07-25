@@ -23,6 +23,31 @@ resources:
             scope: echofm-studio
             key: openai-api-key
             permission: READ
+    mcp:
+      name: echofm-mcp
+      description: EchoFM remote MCP server — authenticated AI-agent access to Studio.
+      source_code_path: .
+      config:
+        command:
+          - sh
+          - -c
+          - PORT=$DATABRICKS_APP_PORT node dist/mcp/mcp/index.js
+      resources:
+        - name: supabase-url
+          secret:
+            scope: echofm-studio
+            key: supabase-url
+            permission: READ
+        - name: supabase-publishable-key
+          secret:
+            scope: echofm-studio
+            key: supabase-publishable-key
+            permission: READ
+        - name: openai-api-key
+          secret:
+            scope: echofm-studio
+            key: openai-api-key
+            permission: READ
 
 targets:
   default:

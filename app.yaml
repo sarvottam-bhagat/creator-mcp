@@ -10,3 +10,5 @@ env:
     valueFrom: supabase-publishable-key
   - name: OPENAI_API_KEY
     valueFrom: openai-api-key
+  - name: MCP_PUBLIC_URL
+    value: https://echofm-mcp-7474657455517113.aws.databricksapps.com/mcp
