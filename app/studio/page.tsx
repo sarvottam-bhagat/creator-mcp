@@ -216,7 +216,10 @@ export default function StudioPage() {
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-fm-primary sm:text-4xl">Make your next audio episode.</h1>
             <p className="mt-2 max-w-2xl text-sm text-fm-tertiary">Write, narrate, score and package an episode in one private creator workspace.</p>
           </div>
-          <button onClick={() => void save('draft')} disabled={busy !== null} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save draft'}</button>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/studio/connections" className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">Connected agents</Link>
+            <button onClick={() => void save('draft')} disabled={busy !== null} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save draft'}</button>
+          </div>
         </div>
 
         <ol className="mb-8 grid grid-cols-5 gap-1 rounded-2xl border border-fm-divider bg-fm-surface p-2" aria-label="Episode creation steps">
