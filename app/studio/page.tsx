@@ -31,6 +31,7 @@ type DraftEpisode = {
   thumbnail_path: string | null;
   thumbnail_prompt: string;
   updated_at: string;
+  music_tracks: Pick<MusicTrack, 'title' | 'mood' | 'asset_key'> | null;
 };
 type Step = 'Script' | 'Voice' | 'Music' | 'Thumbnail' | 'Review';
 type CliffhangerOption = { id: string; title: string; ending: string; rationale: string };
@@ -79,10 +80,10 @@ export default function StudioPage() {
   async function loadDraftEpisodes() {
     const { data, error } = await supabase
       .from('episodes')
-      .select('id, series_id, title, script, voice, music_track_id, narration_paths, thumbnail_path, thumbnail_prompt, updated_at')
+      .select('id, series_id, title, script, voice, music_track_id, narration_paths, thumbnail_path, thumbnail_prompt, updated_at, music_tracks(title, mood, asset_key)')
       .eq('status', 'draft')
       .order('updated_at', { ascending: false });
-    if (!error) setDraftEpisodes((data ?? []) as DraftEpisode[]);
+    if (!error) setDraftEpisodes((data ?? []) as unknown as DraftEpisode[]);
   }
 
   function resetForNewEpisode() {
@@ -394,7 +395,7 @@ export default function StudioPage() {
 
         <section className="mt-10 border-t border-fm-divider pt-10" aria-labelledby="draft-episodes-heading">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-medium tracking-[0.16em] text-fm-red uppercase">Your workspace</p><h2 id="draft-episodes-heading" className="mt-2 text-2xl font-semibold text-fm-primary">Draft episodes</h2><p className="mt-2 text-sm text-fm-tertiary">Private work in progress, grouped inside each series.</p></div><span className="text-sm text-fm-tertiary">{draftEpisodes.length} drafts</span></div>
-          {!hasSession ? <p className="mt-6 rounded-xl border border-dashed border-fm-border p-5 text-sm text-fm-tertiary">Sign in to view your private drafts.</p> : draftCollections.length ? <div className="mt-6 space-y-6">{draftCollections.map(({ series: item, episodes }) => <section key={item.id} className="rounded-2xl border border-fm-divider bg-fm-surface p-5"><h3 className="text-lg font-semibold text-fm-primary">{item.title}</h3><p className="mt-1 text-xs text-fm-tertiary">{episodes.length} draft{episodes.length === 1 ? '' : 's'}</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{episodes.map((episode) => <button key={episode.id} onClick={() => { selectDraft(episode.id); setStep('Script'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-xl border border-fm-border bg-black/10 p-4 text-left hover:border-fm-border-bright"><span className="block text-xs text-fm-red">DRAFT</span><span className="mt-1 block font-medium text-fm-primary">{episode.title || 'Untitled episode'}</span><span className="mt-2 block text-xs text-fm-tertiary">Continue writing or optimize its ending →</span></button>)}</div></section>)}</div> : <div className="mt-6 rounded-2xl border border-dashed border-fm-border bg-fm-surface p-6 text-sm text-fm-tertiary">No drafts yet. Choose or name a series, write your episode, then save it as a draft from Review.</div>}
+          {!hasSession ? <p className="mt-6 rounded-xl border border-dashed border-fm-border p-5 text-sm text-fm-tertiary">Sign in to view your private drafts.</p> : draftCollections.length ? <div className="mt-6 space-y-6">{draftCollections.map(({ series: item, episodes }) => <section key={item.id} className="rounded-2xl border border-fm-divider bg-fm-surface p-5"><h3 className="text-lg font-semibold text-fm-primary">{item.title}</h3><p className="mt-1 text-xs text-fm-tertiary">{episodes.length} draft{episodes.length === 1 ? '' : 's'}</p><div className="mt-4 grid gap-5 lg:grid-cols-2">{episodes.map((episode) => <DraftEpisodeCard key={episode.id} episode={episode} onEdit={() => { selectDraft(episode.id); setStep('Script'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />)}</div></section>)}</div> : <div className="mt-6 rounded-2xl border border-dashed border-fm-border bg-fm-surface p-6 text-sm text-fm-tertiary">No drafts yet. Choose or name a series, write your episode, then save it as a draft from Review.</div>}
         </section>
 
         <section className="mt-10 border-t border-fm-divider pt-10" aria-labelledby="published-episodes-heading">
@@ -495,5 +496,35 @@ function PublishedEpisodeCard({ episode }: { episode: PublishedEpisode }) {
       <div className="min-w-0"><p className="text-xs text-fm-tertiary">Published {episode.published_at ? new Date(episode.published_at).toLocaleDateString() : 'today'}</p><h3 className="mt-1 truncate text-lg font-semibold text-fm-primary">{episode.title}</h3><p className="mt-1 text-xs text-fm-secondary">{episode.voice ? `${episode.voice[0].toUpperCase()}${episode.voice.slice(1)} narration` : 'Narration'} · {episode.music_tracks?.title ?? 'No music'}</p></div>
     </div>
     <EpisodePreview narrationUrls={narrationUrls} musicAssetKey={episode.music_tracks?.asset_key} musicName={episode.music_tracks?.title} heading="Play episode" description={`Play the published narration with ${episode.music_tracks?.title ?? 'its selected background music'}.`} />
+  </article>;
+}
+
+function DraftEpisodeCard({ episode, onEdit }: { episode: DraftEpisode; onEdit: () => void }) {
+  const [narrationUrls, setNarrationUrls] = useState<string[]>([]);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadAssets() {
+      const [{ data: audio }, { data: image }] = await Promise.all([
+        episode.narration_paths.length
+          ? supabase.storage.from('episode-audio').createSignedUrls(episode.narration_paths, 60 * 60)
+          : Promise.resolve({ data: [] }),
+        episode.thumbnail_path
+          ? supabase.storage.from('episode-images').createSignedUrl(episode.thumbnail_path, 60 * 60)
+          : Promise.resolve({ data: null }),
+      ]);
+      setNarrationUrls((audio ?? []).map((item) => item.signedUrl).filter((url): url is string => Boolean(url)));
+      setThumbnailUrl(image?.signedUrl ?? null);
+    }
+    void loadAssets();
+  }, [episode]);
+
+  return <article className="overflow-hidden rounded-2xl border border-fm-divider bg-fm-surface p-5">
+    <div className="flex gap-4">
+      {thumbnailUrl ? <img src={thumbnailUrl} alt={`Draft cover art for ${episode.title}`} className="size-20 rounded-xl object-cover" /> : <div className="flex size-20 shrink-0 items-center justify-center rounded-xl bg-fm-surface-2 text-xs text-fm-tertiary">Draft</div>}
+      <div className="min-w-0"><p className="text-xs font-medium text-fm-red">PRIVATE DRAFT</p><h3 className="mt-1 truncate text-lg font-semibold text-fm-primary">{episode.title || 'Untitled episode'}</h3><p className="mt-1 text-xs text-fm-secondary">{episode.voice ? `${episode.voice[0].toUpperCase()}${episode.voice.slice(1)} narration` : 'Voice not selected'} · {episode.music_tracks?.title ?? 'Music not selected'}</p></div>
+    </div>
+    {narrationUrls.length ? <EpisodePreview narrationUrls={narrationUrls} musicAssetKey={episode.music_tracks?.asset_key} musicName={episode.music_tracks?.title} heading="Preview draft" description="Listen to this private draft with its selected narration and background music before publishing." /> : <div className="mt-5 rounded-xl border border-dashed border-fm-border p-4"><p className="text-sm font-medium text-fm-secondary">Preview unavailable</p><p className="mt-1 text-xs leading-5 text-fm-tertiary">Generate narration first, then this draft can be played here with its selected background music.</p></div>}
+    <button onClick={onEdit} className="mt-4 rounded-full border border-fm-border px-4 py-2 text-xs font-semibold text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">Open draft in Studio</button>
   </article>;
 }
