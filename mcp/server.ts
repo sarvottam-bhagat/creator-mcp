@@ -14,6 +14,11 @@ import {
   generateNarration as generateEpisodeNarration,
   generateThumbnail as generateEpisodeThumbnail,
 } from '../lib/server/studio/generation';
+import {
+  applyCliffhangerRewrite as applyEpisodeCliffhangerRewrite,
+  scoreCliffhanger as scoreEpisodeCliffhanger,
+  type CliffhangerAnalysis,
+} from '../lib/server/studio/cliffhanger';
 import { reviewEpisode as buildEpisodeReview, type EpisodeReview } from '../lib/server/studio/review';
 import { OPENAI_VOICES } from '../lib/studio/voices';
 
@@ -23,6 +28,8 @@ export type EchoFmMcpServices = {
   generateNarration(episodeId: string): Promise<string[]>;
   generateThumbnail(episodeId: string, prompt: string): Promise<string>;
   reviewEpisode(episodeId: string): Promise<EpisodeReview>;
+  scoreCliffhanger(episodeId: string, input: { genre?: string; target?: string }): Promise<CliffhangerAnalysis>;
+  applyCliffhangerRewrite(episodeId: string, ending: string): ReturnType<EpisodeService['updateEpisode']>;
 };
 
 export function createEchoFmMcpServices(context: StudioContext): EchoFmMcpServices {
@@ -34,6 +41,8 @@ export function createEchoFmMcpServices(context: StudioContext): EchoFmMcpServic
     generateNarration: (episodeId) => generateEpisodeNarration(context, episodeId),
     generateThumbnail: (episodeId, prompt) => generateEpisodeThumbnail(context, episodeId, prompt),
     reviewEpisode: (episodeId) => buildEpisodeReview(context, episodeId),
+    scoreCliffhanger: (episodeId, input) => scoreEpisodeCliffhanger(context, episodeId, input),
+    applyCliffhangerRewrite: (episodeId, ending) => applyEpisodeCliffhangerRewrite(context, episodeId, ending),
   };
 }
 
@@ -161,6 +170,22 @@ export function createEchoFmMcpServer(services: EchoFmMcpServices): McpServer {
     inputSchema: { episode_id: z.string().uuid() },
   }, async ({ episode_id }) => runTool('Episode review ready.', () =>
     services.reviewEpisode(episode_id)));
+
+  server.registerTool('score_cliffhanger', {
+    description: 'Privately analyze a draft ending for listener retention and return three stronger ending options plus a next-episode hook. This never edits or publishes the episode.',
+    inputSchema: {
+      episode_id: z.string().uuid(),
+      genre: z.string().min(1).max(80).optional(),
+      target: z.enum(['binge_listening', 'suspense', 'emotional_payoff']).optional(),
+    },
+  }, async ({ episode_id, genre, target }) => runTool('Cliffhanger analysis ready.', () =>
+    services.scoreCliffhanger(episode_id, { genre, target })));
+
+  server.registerTool('apply_cliffhanger_rewrite', {
+    description: 'After the creator selects an ending option, replace only the final section of a creator-owned draft. This never publishes the episode.',
+    inputSchema: { episode_id: z.string().uuid(), ending: z.string().min(10).max(4_000) },
+  }, async ({ episode_id, ending }) => runTool('Cliffhanger rewrite saved to your private draft.', () =>
+    services.applyCliffhangerRewrite(episode_id, ending)));
 
   server.registerTool('publish_episode', {
     description: 'Publish a ready episode after explicit creator confirmation.',

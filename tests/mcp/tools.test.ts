@@ -24,6 +24,8 @@ function services(): EchoFmMcpServices {
     generateNarration: vi.fn().mockResolvedValue(['user-1/episode-1/audio.mp3']),
     generateThumbnail: vi.fn().mockResolvedValue('user-1/episode-1/thumbnail.png'),
     reviewEpisode: vi.fn().mockResolvedValue({ blockers: [] }),
+    scoreCliffhanger: vi.fn().mockResolvedValue({ score: 74, options: [] }),
+    applyCliffhangerRewrite: vi.fn().mockResolvedValue({ id: episodeId, status: 'draft' }),
   } as unknown as EchoFmMcpServices;
 }
 
@@ -63,6 +65,8 @@ describe('EchoFM MCP tools', () => {
       'review_episode',
       'publish_episode',
       'list_published_episodes',
+      'score_cliffhanger',
+      'apply_cliffhanger_rewrite',
     ]));
   });
 
@@ -88,5 +92,17 @@ describe('EchoFM MCP tools', () => {
     });
 
     expect(dependencies.episodes.publishEpisode).toHaveBeenCalledWith(episodeId, true);
+  });
+
+  it('keeps cliffhanger changes draft-only through the dedicated tool', async () => {
+    await client.callTool({
+      name: 'apply_cliffhanger_rewrite',
+      arguments: { episode_id: episodeId, ending: 'The radio answered with Maya’s voice from tomorrow.' },
+    });
+
+    expect(dependencies.applyCliffhangerRewrite).toHaveBeenCalledWith(
+      episodeId,
+      'The radio answered with Maya’s voice from tomorrow.',
+    );
   });
 });

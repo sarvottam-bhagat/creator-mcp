@@ -19,6 +19,8 @@ type PublishedEpisode = {
   music_tracks: Pick<MusicTrack, 'title' | 'mood' | 'asset_key'> | null;
 };
 type Step = 'Script' | 'Voice' | 'Music' | 'Thumbnail' | 'Review';
+type CliffhangerOption = { id: string; title: string; ending: string; rationale: string };
+type CliffhangerAnalysis = { score: number; strengths: string[]; improvements: string[]; next_episode_hook: string; options: CliffhangerOption[] };
 
 const steps: Step[] = ['Script', 'Voice', 'Music', 'Thumbnail', 'Review'];
 
@@ -36,9 +38,11 @@ export default function StudioPage() {
   const [narrationUrls, setNarrationUrls] = useState<string[]>([]);
   const [episodeId, setEpisodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState('Preparing your private creator workspace…');
-  const [busy, setBusy] = useState<'narration' | 'thumbnail' | 'save' | 'publish' | null>(null);
+  const [busy, setBusy] = useState<'narration' | 'thumbnail' | 'save' | 'publish' | 'cliffhanger' | 'rewrite' | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [publishedEpisodes, setPublishedEpisodes] = useState<PublishedEpisode[]>([]);
+  const [cliffhanger, setCliffhanger] = useState<CliffhangerAnalysis | null>(null);
+  const [selectedCliffhanger, setSelectedCliffhanger] = useState<string | null>(null);
 
   async function loadPublishedEpisodes() {
     const { data, error } = await supabase
@@ -164,6 +168,38 @@ export default function StudioPage() {
     } finally { setBusy(null); }
   }
 
+  async function analyzeCliffhanger() {
+    setBusy('cliffhanger');
+    try {
+      const savedEpisodeId = await ensureEpisode('draft');
+      const response = await fetch('/api/studio/cliffhanger', { method: 'POST', headers: await authHeader(), body: JSON.stringify({ action: 'analyze', episodeId: savedEpisodeId }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setCliffhanger(data.analysis);
+      setSelectedCliffhanger(data.analysis.options[0]?.id ?? null);
+      setNotice(`Cliffhanger scored ${data.analysis.score}/100. Choose an option to update only the ending.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Cliffhanger analysis could not be completed.');
+    } finally { setBusy(null); }
+  }
+
+  async function applyCliffhanger() {
+    const option = cliffhanger?.options.find((item) => item.id === selectedCliffhanger);
+    if (!option || !episodeId) return;
+    setBusy('rewrite');
+    try {
+      const response = await fetch('/api/studio/cliffhanger', { method: 'POST', headers: await authHeader(), body: JSON.stringify({ action: 'apply', episodeId, ending: option.ending }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setScript(data.episode.script);
+      setCliffhanger(null);
+      setSelectedCliffhanger(null);
+      setNotice('Selected ending saved to your private draft. It has not been published.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'The ending could not be updated.');
+    } finally { setBusy(null); }
+  }
+
   async function save(status: 'draft' | 'published') {
     if (status === 'published' && blockers.length) {
       setStep('Review');
@@ -211,6 +247,17 @@ export default function StudioPage() {
               <label className="mt-7 block text-sm font-medium text-fm-secondary">Episode title<input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-fm-border bg-black/20 px-3 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
               <label className="mt-5 block text-sm font-medium text-fm-secondary">Narration script<textarea value={script} onChange={(event) => setScript(event.target.value)} rows={12} className="mt-2 w-full resize-y rounded-xl border border-fm-border bg-black/20 p-3 leading-7 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
               <p className="mt-2 text-xs text-fm-tertiary">{script.length.toLocaleString()} characters · long scripts are automatically split into narrated parts.</p>
+              <div className="mt-6 rounded-xl border border-fm-border bg-black/10 p-4">
+                <p className="text-sm font-semibold text-fm-primary">Cliffhanger optimizer</p>
+                <p className="mt-1 text-xs leading-5 text-fm-tertiary">Score the ending, compare three stronger options, and get a next-episode hook. Analysis saves a draft first; nothing is published automatically.</p>
+                <button onClick={() => void analyzeCliffhanger()} disabled={busy !== null || !script.trim() || !hasSession} className="mt-4 rounded-full border border-fm-border px-4 py-2 text-xs font-semibold text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'cliffhanger' ? 'Analyzing ending…' : cliffhanger ? 'Analyze again' : 'Analyze ending'}</button>
+                {cliffhanger && <div className="mt-4 border-t border-fm-divider pt-4">
+                  <p className="text-sm font-medium text-fm-primary">Retention score: <span className="text-fm-red">{cliffhanger.score}/100</span></p>
+                  <p className="mt-2 text-xs text-fm-secondary">Next episode opening: {cliffhanger.next_episode_hook}</p>
+                  <div className="mt-4 grid gap-3">{cliffhanger.options.map((option) => <label key={option.id} className={`cursor-pointer rounded-xl border p-3 ${selectedCliffhanger === option.id ? 'border-fm-red bg-fm-red/10' : 'border-fm-border'}`}><input type="radio" name="cliffhanger-option" checked={selectedCliffhanger === option.id} onChange={() => setSelectedCliffhanger(option.id)} className="sr-only" /><span className="block text-sm font-medium text-fm-primary">{option.title}</span><span className="mt-1 block text-xs leading-5 text-fm-secondary">{option.ending}</span><span className="mt-2 block text-xs text-fm-tertiary">{option.rationale}</span></label>)}</div>
+                  <button onClick={() => void applyCliffhanger()} disabled={busy !== null || !selectedCliffhanger} className="mt-4 rounded-full bg-fm-red px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50">{busy === 'rewrite' ? 'Saving ending…' : 'Apply selected ending to draft'}</button>
+                </div>}
+              </div>
               <NextButton onClick={() => setStep('Voice')}>Choose a voice</NextButton>
             </div>}
 
