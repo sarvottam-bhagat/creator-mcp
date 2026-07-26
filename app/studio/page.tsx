@@ -18,6 +18,17 @@ type PublishedEpisode = {
   published_at: string | null;
   music_tracks: Pick<MusicTrack, 'title' | 'mood' | 'asset_key'> | null;
 };
+type DraftEpisode = {
+  id: string;
+  title: string;
+  script: string;
+  voice: OpenAiVoice | null;
+  music_track_id: string | null;
+  narration_paths: string[];
+  thumbnail_path: string | null;
+  thumbnail_prompt: string;
+  updated_at: string;
+};
 type Step = 'Script' | 'Voice' | 'Music' | 'Thumbnail' | 'Review';
 type CliffhangerOption = { id: string; title: string; ending: string; rationale: string };
 type CliffhangerAnalysis = { score: number; strengths: string[]; improvements: string[]; next_episode_hook: string; options: CliffhangerOption[] };
@@ -26,8 +37,8 @@ const steps: Step[] = ['Script', 'Voice', 'Music', 'Thumbnail', 'Review'];
 
 export default function StudioPage() {
   const [step, setStep] = useState<Step>('Script');
-  const [title, setTitle] = useState('Episode 1 — The first signal');
-  const [script, setScript] = useState('The rain began just after midnight. In the quiet between thunderclaps, Maya heard a voice on the old radio — a voice that knew her name.');
+  const [title, setTitle] = useState('');
+  const [script, setScript] = useState('');
   const [voice, setVoice] = useState<OpenAiVoice>('marin');
   const [music, setMusic] = useState<MusicTrack[]>([]);
   const [musicTrackId, setMusicTrackId] = useState('night-drive');
@@ -41,6 +52,7 @@ export default function StudioPage() {
   const [busy, setBusy] = useState<'narration' | 'thumbnail' | 'save' | 'publish' | 'cliffhanger' | 'rewrite' | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [publishedEpisodes, setPublishedEpisodes] = useState<PublishedEpisode[]>([]);
+  const [draftEpisodes, setDraftEpisodes] = useState<DraftEpisode[]>([]);
   const [cliffhanger, setCliffhanger] = useState<CliffhangerAnalysis | null>(null);
   const [selectedCliffhanger, setSelectedCliffhanger] = useState<string | null>(null);
 
@@ -51,6 +63,46 @@ export default function StudioPage() {
       .eq('status', 'published')
       .order('published_at', { ascending: false });
     if (!error) setPublishedEpisodes((data ?? []) as unknown as PublishedEpisode[]);
+  }
+
+  async function loadDraftEpisodes() {
+    const { data, error } = await supabase
+      .from('episodes')
+      .select('id, title, script, voice, music_track_id, narration_paths, thumbnail_path, thumbnail_prompt, updated_at')
+      .eq('status', 'draft')
+      .order('updated_at', { ascending: false });
+    if (!error) setDraftEpisodes((data ?? []) as DraftEpisode[]);
+  }
+
+  function resetForNewEpisode() {
+    setEpisodeId(null);
+    setTitle('');
+    setScript('');
+    setVoice('marin');
+    setMusicTrackId('night-drive');
+    setNarrationPaths([]);
+    setThumbnailPath(null);
+    setThumbnailUrl(null);
+    setThumbnailPrompt('');
+    setCliffhanger(null);
+    setSelectedCliffhanger(null);
+    setNotice('New episode selected. Write a script, then save or analyze it when ready.');
+  }
+
+  function selectDraft(id: string) {
+    const draft = draftEpisodes.find((item) => item.id === id);
+    if (!draft) return;
+    setEpisodeId(draft.id);
+    setTitle(draft.title);
+    setScript(draft.script);
+    setVoice(draft.voice ?? 'marin');
+    setMusicTrackId(draft.music_track_id ?? '');
+    setNarrationPaths(draft.narration_paths);
+    setThumbnailPath(draft.thumbnail_path);
+    setThumbnailPrompt(draft.thumbnail_prompt);
+    setCliffhanger(null);
+    setSelectedCliffhanger(null);
+    setNotice(`Editing draft: ${draft.title}.`);
   }
 
   useEffect(() => {
@@ -79,6 +131,7 @@ export default function StudioPage() {
       else {
         setMusic(tracks ?? []);
         await loadPublishedEpisodes();
+        await loadDraftEpisodes();
         setNotice('Private Studio workspace ready. Your work is saved to your account.');
       }
     }
@@ -134,6 +187,7 @@ export default function StudioPage() {
       .single();
     if (episodeError || !episode) throw episodeError ?? new Error('Could not create an episode.');
     setEpisodeId(episode.id);
+    await loadDraftEpisodes();
     return episode.id;
   }
 
@@ -192,6 +246,7 @@ export default function StudioPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setScript(data.episode.script);
+      await loadDraftEpisodes();
       setCliffhanger(null);
       setSelectedCliffhanger(null);
       setNotice('Selected ending saved to your private draft. It has not been published.');
@@ -209,6 +264,7 @@ export default function StudioPage() {
     setBusy(status === 'published' ? 'publish' : 'save');
     try {
       await ensureEpisode(status);
+      await loadDraftEpisodes();
       if (status === 'published') await loadPublishedEpisodes();
       setNotice(status === 'published' ? 'Episode published — it is ready for your audience.' : 'Draft saved to Studio.');
     } catch (error) {
@@ -243,14 +299,18 @@ export default function StudioPage() {
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="rounded-2xl border border-fm-divider bg-fm-surface p-5 sm:p-7">
             {step === 'Script' && <div>
-              <StepHeading eyebrow="01 / Script" title="Start with the story." text="Your script is the source for your OpenAI narration." />
+              <StepHeading eyebrow="01 / Script" title="Choose a draft, then write the story." text="The editor and optimizer always work on the episode selected below." />
+              <div className="mt-7 rounded-xl border border-fm-border bg-black/10 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><label className="block flex-1 text-sm font-medium text-fm-secondary">Editing episode<select value={episodeId ?? ''} onChange={(event) => event.target.value ? selectDraft(event.target.value) : resetForNewEpisode()} className="mt-2 h-11 w-full rounded-xl border border-fm-border bg-black/20 px-3 text-fm-primary outline-none focus:border-fm-border-bright"><option value="">New untitled episode</option>{draftEpisodes.map((draft) => <option key={draft.id} value={draft.id}>{draft.title || 'Untitled episode'} · last saved {new Date(draft.updated_at).toLocaleDateString()}</option>)}</select></label><button onClick={resetForNewEpisode} className="rounded-full border border-fm-border px-4 py-2.5 text-xs font-semibold text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">+ New episode</button></div>
+                <p className="mt-3 text-xs leading-5 text-fm-tertiary">Published episodes are playback-only. To improve an older published episode, create a new draft from it first.</p>
+              </div>
               <label className="mt-7 block text-sm font-medium text-fm-secondary">Episode title<input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-fm-border bg-black/20 px-3 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
               <label className="mt-5 block text-sm font-medium text-fm-secondary">Narration script<textarea value={script} onChange={(event) => setScript(event.target.value)} rows={12} className="mt-2 w-full resize-y rounded-xl border border-fm-border bg-black/20 p-3 leading-7 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
               <p className="mt-2 text-xs text-fm-tertiary">{script.length.toLocaleString()} characters · long scripts are automatically split into narrated parts.</p>
               <div className="mt-6 rounded-xl border border-fm-border bg-black/10 p-4">
-                <p className="text-sm font-semibold text-fm-primary">Cliffhanger optimizer</p>
-                <p className="mt-1 text-xs leading-5 text-fm-tertiary">Score the ending, compare three stronger options, and get a next-episode hook. Analysis saves a draft first; nothing is published automatically.</p>
-                <button onClick={() => void analyzeCliffhanger()} disabled={busy !== null || !script.trim() || !hasSession} className="mt-4 rounded-full border border-fm-border px-4 py-2 text-xs font-semibold text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'cliffhanger' ? 'Analyzing ending…' : cliffhanger ? 'Analyze again' : 'Analyze ending'}</button>
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-fm-primary">Improve this episode’s ending</p><p className="mt-1 text-xs leading-5 text-fm-tertiary">Analyzes your current writing only when you click the button. This avoids surprise API usage while you type.</p></div><span className="rounded-full border border-fm-border px-3 py-1 text-xs text-fm-secondary">{episodeId ? `Selected: ${title || 'Untitled draft'}` : 'New episode — not saved yet'}</span></div>
+                <div className="mt-4 rounded-lg bg-fm-surface-2 p-3 text-xs text-fm-tertiary"><span className="font-semibold text-fm-secondary">How it works:</span> 1. Save selected draft  2. Analyze its current ending  3. Choose a rewrite  4. Get a hook for the next episode.</div>
+                <button onClick={() => void analyzeCliffhanger()} disabled={busy !== null || script.trim().length < 40 || !hasSession} className="mt-4 rounded-full border border-fm-border px-4 py-2 text-xs font-semibold text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'cliffhanger' ? 'Analyzing current writing…' : cliffhanger ? 'Re-analyze current writing' : 'Analyze this ending'}</button>
                 {cliffhanger && <div className="mt-4 border-t border-fm-divider pt-4">
                   <p className="text-sm font-medium text-fm-primary">Retention score: <span className="text-fm-red">{cliffhanger.score}/100</span></p>
                   <p className="mt-2 text-xs text-fm-secondary">Next episode opening: {cliffhanger.next_episode_hook}</p>
