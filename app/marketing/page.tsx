@@ -142,9 +142,23 @@ export default function MarketingPage() {
           <section className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {videos.map((video) => (
               <article key={video.id} className="overflow-hidden rounded-2xl border border-fm-border bg-fm-surface">
-                <div className="aspect-[9/16] bg-fm-surface-2">
+                <div className="relative aspect-[9/16] bg-fm-surface-2">
                   {video.signedUrl ? (
-                    <video className="size-full object-cover" controls playsInline preload="metadata" src={video.signedUrl} />
+                    <>
+                      <video
+                        className="size-full object-cover"
+                        autoPlay
+                        muted
+                        loop
+                        controls
+                        playsInline
+                        preload="metadata"
+                        src={video.signedUrl}
+                      />
+                      <span className="pointer-events-none absolute top-3 left-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-semibold text-white">
+                        Playing muted
+                      </span>
+                    </>
                   ) : (
                     <div className="flex size-full items-center justify-center px-6 text-center text-sm text-fm-tertiary">
                       {video.status === 'failed' ? video.failure_reason : 'Your private UGC video will appear here when rendering finishes.'}
