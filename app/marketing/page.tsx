@@ -27,6 +27,7 @@ type MarketingReel = {
   episodes: { title: string; series: { title: string } | null } | null;
   signedUrl?: string;
 };
+type HookDraft = { title: string; script: string; presenter: 'female' | 'male' };
 
 const statusStyle: Record<UgcStatus, string> = {
   queued: 'text-amber-300 border-amber-300/30 bg-amber-300/10',
@@ -44,6 +45,8 @@ export default function MarketingPage() {
   const [videos, setVideos] = useState<MarketingVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [suggestingHooks, setSuggestingHooks] = useState(false);
+  const [hookDrafts, setHookDrafts] = useState<HookDraft[]>([]);
   const [notice, setNotice] = useState('Sign in to build your private UGC video library.');
   const [hasSession, setHasSession] = useState(false);
   const [episodes, setEpisodes] = useState<PublishedEpisode[]>([]);
@@ -137,9 +140,36 @@ export default function MarketingPage() {
     setSelectedUgcId((current) => matchingCompleted.some((video) => video.id === current) ? current : matchingCompleted[0]?.id || '');
   }, [selectedEpisodeId, videos]);
 
-  async function generateHooks() {
+  useEffect(() => {
+    setHookDrafts([]);
+  }, [selectedEpisodeId]);
+
+  async function suggestHooks() {
     if (!selectedEpisodeId) {
       setNotice('Choose a published narrated episode before generating hooks.');
+      return;
+    }
+    setSuggestingHooks(true);
+    try {
+      const response = await fetch('/api/marketing/ugc', {
+        method: 'POST',
+        headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'suggest', episodeId: selectedEpisodeId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setHookDrafts(data.hooks as HookDraft[]);
+      setNotice('Five episode-specific hook scripts are ready to review. Edit any wording, then generate the videos you approve.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Episode hook suggestions could not be created.');
+    } finally {
+      setSuggestingHooks(false);
+    }
+  }
+
+  async function generateHooks() {
+    if (!selectedEpisodeId || hookDrafts.length !== 5) {
+      setNotice('Ask EchoFM for five hook suggestions, then review them before generating videos.');
       return;
     }
     setGenerating(true);
@@ -147,18 +177,23 @@ export default function MarketingPage() {
       const response = await fetch('/api/marketing/ugc', {
         method: 'POST',
         headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ episodeId: selectedEpisodeId }),
+        body: JSON.stringify({ action: 'generate', episodeId: selectedEpisodeId, hooks: hookDrafts }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       const next = await addPreviewUrls(data.videos as MarketingVideo[]);
       setVideos(next);
-      setNotice('Five episode-specific UGC jobs were submitted. Videos will appear here as each one finishes.');
+      setHookDrafts([]);
+      setNotice('Five approved episode-specific UGC jobs were submitted. Videos will appear here as each one finishes.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The UGC videos could not be submitted.');
     } finally {
       setGenerating(false);
     }
+  }
+
+  function updateHookScript(index: number, script: string) {
+    setHookDrafts((current) => current.map((hook, itemIndex) => itemIndex === index ? { ...hook, script } : hook));
   }
 
   async function createReel() {
@@ -231,11 +266,11 @@ export default function MarketingPage() {
           {hasSession && (
             <button
               type="button"
-              onClick={() => void generateHooks()}
-              disabled={generating || !selectedEpisodeId}
+              onClick={() => void suggestHooks()}
+              disabled={suggestingHooks || generating || !selectedEpisodeId}
               className="rounded-full bg-fm-red px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {generating ? 'Submitting 5 videos…' : 'Generate 5 hooks'}
+              {suggestingHooks ? 'Analyzing episode…' : 'Suggest 5 hooks'}
             </button>
           )}
         </section>
@@ -253,8 +288,8 @@ export default function MarketingPage() {
                 <select value={selectedEpisodeId} onChange={(event) => setSelectedEpisodeId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-fm-border bg-black px-3 text-sm text-fm-primary focus:border-fm-border-bright focus:outline-none">
                   {episodes.length ? episodes.map((episode) => <option key={episode.id} value={episode.id}>{episode.series?.title ?? 'Untitled series'} — {episode.title}</option>) : <option value="">No published narrated episodes yet</option>}
                 </select>
-                <button type="button" onClick={() => void generateHooks()} disabled={generating || !selectedEpisodeId} className="mt-3 rounded-full border border-fm-border px-4 py-2 text-sm font-semibold text-fm-primary hover:border-fm-border-bright disabled:cursor-not-allowed disabled:opacity-45">
-                  {generating ? 'Creating 5 hooks…' : 'Generate 5 hooks for this episode'}
+                <button type="button" onClick={() => void suggestHooks()} disabled={suggestingHooks || generating || !selectedEpisodeId} className="mt-3 rounded-full border border-fm-border px-4 py-2 text-sm font-semibold text-fm-primary hover:border-fm-border-bright disabled:cursor-not-allowed disabled:opacity-45">
+                  {suggestingHooks ? 'Analyzing episode…' : 'Suggest 5 hooks for this episode'}
                 </button>
               </label>
               <label className="text-sm font-medium text-fm-secondary">
@@ -266,6 +301,29 @@ export default function MarketingPage() {
                 </select>
               </label>
             </div>
+            {!!hookDrafts.length && (
+              <section className="mt-6 rounded-xl border border-fm-border bg-black/30 p-5">
+                <p className="text-xs font-semibold tracking-[0.16em] text-fm-red uppercase">Review before video generation</p>
+                <h3 className="mt-2 text-lg font-semibold text-fm-primary">Edit the five episode-specific hook scripts</h3>
+                <p className="mt-1 text-sm text-fm-tertiary">These recommendations are based on the selected episode. Change any wording you want; no video generation starts until you approve them below.</p>
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  {hookDrafts.map((hook, index) => (
+                    <label key={`${hook.title}-${index}`} className="rounded-xl border border-fm-border bg-fm-surface p-4 text-sm">
+                      <span className="text-xs font-semibold tracking-[0.12em] text-fm-red uppercase">{hook.presenter} creator · hook {index + 1}</span>
+                      <span className="mt-2 block font-semibold text-fm-primary">{hook.title}</span>
+                      <textarea value={hook.script} maxLength={260} onChange={(event) => updateHookScript(index, event.target.value)} className="mt-3 min-h-24 w-full resize-y rounded-lg border border-fm-border bg-black p-3 text-sm leading-6 text-fm-primary focus:border-fm-border-bright focus:outline-none" />
+                      <span className="mt-2 block text-xs text-fm-tertiary">{hook.script.length}/260 characters · approximately 4 seconds</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-5 flex flex-wrap items-center gap-4">
+                  <button type="button" onClick={() => void generateHooks()} disabled={generating || hookDrafts.some((hook) => hook.script.trim().length < 12)} className="rounded-full bg-fm-red px-5 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-45">
+                    {generating ? 'Submitting 5 videos…' : 'Generate 5 approved videos'}
+                  </button>
+                  <button type="button" onClick={() => void suggestHooks()} disabled={suggestingHooks || generating} className="text-sm font-semibold text-fm-secondary hover:text-fm-primary disabled:opacity-45">Suggest different hooks</button>
+                </div>
+              </section>
+            )}
             <label className="mt-4 block text-sm font-medium text-fm-secondary">
               Final CTA text
               <input value={ctaText} maxLength={120} onChange={(event) => setCtaText(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-fm-border bg-black px-3 text-sm text-fm-primary focus:border-fm-border-bright focus:outline-none" />

@@ -13,7 +13,7 @@ type OpenRouterJob = {
   error?: string;
 };
 
-type EpisodeHook = {
+export type EpisodeHook = {
   title: string;
   script: string;
   presenter: 'female' | 'male';
@@ -145,7 +145,7 @@ async function generateEpisodeHooks(episode: { title: string; script: string; se
   }
 }
 
-export async function createEpisodeUgcBatch(context: StudioContext, episodeId: string) {
+async function getEligibleEpisode(context: StudioContext, episodeId: string) {
   const { data: episode, error: episodeError } = await context.supabase
     .from('episodes')
     .select('id, title, script, status, narration_paths, series:series_id(title)')
@@ -155,16 +155,38 @@ export async function createEpisodeUgcBatch(context: StudioContext, episodeId: s
   if (episode.status !== 'published' || !episode.script.trim() || !episode.narration_paths.length) {
     throw new StudioError('not_ready', 'Choose a published episode with a script and narration before generating hooks.', 400);
   }
-  const existing = await listUgcVideos(context);
-  const episodeVideos = existing.filter((video) => video.episode_id === episodeId);
-  if (episodeVideos.length) return episodeVideos;
   const rawSeries = episode.series as unknown;
   const series = Array.isArray(rawSeries) ? rawSeries[0] ?? null : rawSeries;
-  const hooks = await generateEpisodeHooks({
+  return {
+    id: episode.id,
     title: episode.title,
     script: episode.script,
     series: series as { title: string } | null,
+  };
+}
+
+export async function suggestEpisodeUgcHooks(context: StudioContext, episodeId: string) {
+  return generateEpisodeHooks(await getEligibleEpisode(context, episodeId));
+}
+
+function validateHooks(hooks: EpisodeHook[]) {
+  if (hooks.length !== 5) throw new StudioError('invalid_input', 'Exactly five hooks are required.', 400);
+  return hooks.map((hook) => {
+    const title = hook.title.trim().slice(0, 80);
+    const script = hook.script.trim().slice(0, 260);
+    if (!title || script.length < 12 || !['female', 'male'].includes(hook.presenter)) {
+      throw new StudioError('invalid_input', 'Each hook needs a title, a 12-character script, and a presenter.', 400);
+    }
+    return { title, script, presenter: hook.presenter } as EpisodeHook;
   });
+}
+
+export async function createEpisodeUgcBatch(context: StudioContext, episodeId: string, proposedHooks: EpisodeHook[]) {
+  await getEligibleEpisode(context, episodeId);
+  const existing = await listUgcVideos(context);
+  const episodeVideos = existing.filter((video) => video.episode_id === episodeId);
+  if (episodeVideos.length) return episodeVideos;
+  const hooks = validateHooks(proposedHooks);
   const { data: rows, error } = await context.supabase
     .from('marketing_ugc_videos')
     .insert(hooks.map((hook) => ({
