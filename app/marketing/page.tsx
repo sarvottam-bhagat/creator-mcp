@@ -6,9 +6,9 @@ import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import { renderReel } from '@/lib/marketing/reel-renderer';
 import { supabase } from '@/lib/supabase/client';
-import { BEGGAR_HUSBAND_HOOKS, type UgcStatus, type UgcVideo } from '@/lib/marketing/ugc';
+import { type UgcStatus, type UgcVideo } from '@/lib/marketing/ugc';
 
-type MarketingVideo = Pick<UgcVideo, 'id' | 'title' | 'hook_script' | 'presenter' | 'duration_seconds' | 'status' | 'video_path' | 'failure_reason'> & {
+type MarketingVideo = Pick<UgcVideo, 'id' | 'episode_id' | 'title' | 'hook_script' | 'presenter' | 'duration_seconds' | 'status' | 'video_path' | 'failure_reason'> & {
   signedUrl?: string;
 };
 type PublishedEpisode = {
@@ -76,8 +76,8 @@ export default function MarketingPage() {
       if (!response.ok) throw new Error(data.error);
       const next = await addPreviewUrls(data.videos as MarketingVideo[]);
       setVideos(next);
-      const completed = next.filter((video) => video.status === 'completed' && video.signedUrl);
-      setSelectedUgcId((current) => current || completed[0]?.id || '');
+      const completed = next.filter((video) => video.status === 'completed' && video.signedUrl && video.episode_id === selectedEpisodeId);
+      setSelectedUgcId((current) => completed.some((video) => video.id === current) ? current : completed[0]?.id || '');
       const rendering = next.filter((video) => video.status === 'generating' || video.status === 'queued').length;
       setNotice(rendering ? `${rendering} UGC video${rendering === 1 ? '' : 's'} still rendering. This page refreshes automatically.` : next.length ? 'Your finished hooks are private and ready to download.' : 'Your UGC library is ready to create.');
     } catch (error) {
@@ -132,15 +132,28 @@ export default function MarketingPage() {
     return () => window.clearInterval(interval);
   }, [videos]);
 
+  useEffect(() => {
+    const matchingCompleted = videos.filter((video) => video.status === 'completed' && video.signedUrl && video.episode_id === selectedEpisodeId);
+    setSelectedUgcId((current) => matchingCompleted.some((video) => video.id === current) ? current : matchingCompleted[0]?.id || '');
+  }, [selectedEpisodeId, videos]);
+
   async function generateHooks() {
+    if (!selectedEpisodeId) {
+      setNotice('Choose a published narrated episode before generating hooks.');
+      return;
+    }
     setGenerating(true);
     try {
-      const response = await fetch('/api/marketing/ugc', { method: 'POST', headers: await authHeaders() });
+      const response = await fetch('/api/marketing/ugc', {
+        method: 'POST',
+        headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ episodeId: selectedEpisodeId }),
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       const next = await addPreviewUrls(data.videos as MarketingVideo[]);
       setVideos(next);
-      setNotice(data.alreadyCreated ? 'This five-video hook pack already exists in your library.' : 'Five Seedance UGC jobs were submitted. Videos will appear here as each one finishes.');
+      setNotice('Five episode-specific UGC jobs were submitted. Videos will appear here as each one finishes.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The UGC videos could not be submitted.');
     } finally {
@@ -213,38 +226,43 @@ export default function MarketingPage() {
           <div>
             <p className="text-xs font-semibold tracking-[0.2em] text-fm-red uppercase">EchoFM Marketing</p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-fm-primary">UGC Hook Library</h1>
-            <p className="mt-2 max-w-2xl text-fm-tertiary">Create creator-style talking-head hooks now. You can attach the best one to an episode when Reel Maker arrives.</p>
+            <p className="mt-2 max-w-2xl text-fm-tertiary">Generate creator-style talking-head hooks from a selected episode, then turn the best one into a private reel.</p>
           </div>
           {hasSession && (
             <button
               type="button"
               onClick={() => void generateHooks()}
-              disabled={generating || videos.length > 0}
+              disabled={generating || !selectedEpisodeId}
               className="rounded-full bg-fm-red px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {generating ? 'Submitting 5 videos…' : videos.length ? 'Hook pack created' : 'Create 5 UGC hooks'}
+              {generating ? 'Submitting 5 videos…' : 'Generate 5 hooks'}
             </button>
           )}
         </section>
 
         <div className="mt-5 rounded-xl border border-fm-border bg-fm-surface px-5 py-4 text-sm text-fm-secondary">{notice}</div>
 
-        {hasSession && videos.some((video) => video.status === 'completed' && video.signedUrl) && (
+        {hasSession && episodes.length > 0 && (
           <section className="mt-8 rounded-2xl border border-fm-border bg-fm-surface p-6 sm:p-8">
             <p className="text-xs font-semibold tracking-[0.18em] text-fm-red uppercase">Reel Maker</p>
             <h2 className="mt-2 text-2xl font-semibold text-fm-primary">Turn a hook into an episode reel</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-fm-tertiary">EchoFM joins the selected UGC hook, the first 20 seconds of your episode narration with its cover visual, and a two-second CTA end card. Rendering happens privately in this browser and the final MP4 is saved to your library.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-fm-tertiary">Choose the episode first. EchoFM writes and generates five hooks specifically from its script; then select one to make a private reel with the first 20 seconds of narration and a CTA end card.</p>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <label className="text-sm font-medium text-fm-secondary">
                 Published episode
                 <select value={selectedEpisodeId} onChange={(event) => setSelectedEpisodeId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-fm-border bg-black px-3 text-sm text-fm-primary focus:border-fm-border-bright focus:outline-none">
                   {episodes.length ? episodes.map((episode) => <option key={episode.id} value={episode.id}>{episode.series?.title ?? 'Untitled series'} — {episode.title}</option>) : <option value="">No published narrated episodes yet</option>}
                 </select>
+                <button type="button" onClick={() => void generateHooks()} disabled={generating || !selectedEpisodeId} className="mt-3 rounded-full border border-fm-border px-4 py-2 text-sm font-semibold text-fm-primary hover:border-fm-border-bright disabled:cursor-not-allowed disabled:opacity-45">
+                  {generating ? 'Creating 5 hooks…' : 'Generate 5 hooks for this episode'}
+                </button>
               </label>
               <label className="text-sm font-medium text-fm-secondary">
                 Talking UGC hook
                 <select value={selectedUgcId} onChange={(event) => setSelectedUgcId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-fm-border bg-black px-3 text-sm text-fm-primary focus:border-fm-border-bright focus:outline-none">
-                  {videos.filter((video) => video.status === 'completed' && video.signedUrl).map((video) => <option key={video.id} value={video.id}>{video.presenter} — {video.title}</option>)}
+                  {videos.filter((video) => video.status === 'completed' && video.signedUrl && video.episode_id === selectedEpisodeId).length
+                    ? videos.filter((video) => video.status === 'completed' && video.signedUrl && video.episode_id === selectedEpisodeId).map((video) => <option key={video.id} value={video.id}>{video.presenter} — {video.title}</option>)
+                    : <option value="">Generate episode hooks to continue</option>}
                 </select>
               </label>
             </div>
@@ -269,19 +287,41 @@ export default function MarketingPage() {
           </div>
         )}
 
-        {hasSession && !videos.length && !loading && (
-          <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {BEGGAR_HUSBAND_HOOKS.map((hook) => (
-              <article key={hook.title} className="rounded-2xl border border-fm-border bg-fm-surface p-5">
-                <p className="text-xs font-semibold tracking-[0.14em] text-fm-red uppercase">{hook.presenter} UGC · 4 sec</p>
-                <h2 className="mt-3 text-lg font-semibold">{hook.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-fm-secondary">“{hook.script}”</p>
+        {!!videos.filter((video) => video.episode_id === selectedEpisodeId).length && (
+          <section className="mt-8">
+            <p className="text-xs font-semibold tracking-[0.18em] text-fm-red uppercase">Episode hook library</p>
+            <h2 className="mt-2 text-2xl font-semibold">Hooks for {episodes.find((episode) => episode.id === selectedEpisodeId)?.title ?? 'this episode'}</h2>
+            <p className="mt-2 text-sm text-fm-tertiary">These five clips were generated from this episode’s story. Choose a completed one above to create its reel.</p>
+            <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {videos.filter((video) => video.episode_id === selectedEpisodeId).map((video) => (
+              <article key={video.id} className="overflow-hidden rounded-2xl border border-fm-border bg-fm-surface">
+                <div className="relative aspect-[9/16] bg-fm-surface-2">
+                  {video.signedUrl ? (
+                    <>
+                      <video className="size-full object-cover" autoPlay muted loop controls playsInline preload="metadata" src={video.signedUrl} />
+                      <span className="pointer-events-none absolute top-3 left-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-semibold text-white">Playing muted</span>
+                    </>
+                  ) : <div className="flex size-full items-center justify-center px-6 text-center text-sm text-fm-tertiary">{video.status === 'failed' ? video.failure_reason : 'Your private UGC video will appear here when rendering finishes.'}</div>}
+                </div>
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-3"><div><p className="text-xs text-fm-tertiary">{video.presenter} creator · {video.duration_seconds} sec</p><h2 className="mt-1 font-semibold text-fm-primary">{video.title}</h2></div><span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyle[video.status]}`}>{statusLabel(video.status)}</span></div>
+                  <p className="mt-3 text-sm leading-6 text-fm-secondary">“{video.hook_script}”</p>
+                  {video.signedUrl && <a className="mt-4 inline-flex rounded-full border border-fm-border px-4 py-2 text-sm font-semibold text-fm-primary hover:border-fm-border-bright" href={`${video.signedUrl}&download=${encodeURIComponent(`${video.title}.mp4`)}`}>Download MP4</a>}
+                </div>
               </article>
             ))}
+            </div>
           </section>
         )}
 
-        {!!videos.length && (
+        {!!videos.filter((video) => video.episode_id === null).length && (
+          <section className="mt-10 border-t border-fm-divider pt-8">
+            <p className="text-xs font-semibold tracking-[0.18em] text-fm-tertiary uppercase">Earlier general hooks</p>
+            <p className="mt-2 text-sm text-fm-tertiary">These older clips are not tied to an episode. New reels use the episode-specific hook library above.</p>
+          </section>
+        )}
+
+        {false && !!videos.length && (
           <section className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {videos.map((video) => (
               <article key={video.id} className="overflow-hidden rounded-2xl border border-fm-border bg-fm-surface">

@@ -3,6 +3,7 @@ export type UgcStatus = 'queued' | 'generating' | 'completed' | 'failed';
 export type UgcVideo = {
   id: string;
   creator_id: string;
+  episode_id: string | null;
   title: string;
   hook_script: string;
   presenter: 'female' | 'male';

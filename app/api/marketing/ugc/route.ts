@@ -1,6 +1,6 @@
 import { createStudioContext } from '@/lib/server/studio/context';
 import { StudioError } from '@/lib/server/studio/errors';
-import { createBeggarHusbandUgcBatch, listUgcVideos, refreshUgcVideos } from '@/lib/server/marketing/ugc';
+import { createEpisodeUgcBatch, refreshUgcVideos } from '@/lib/server/marketing/ugc';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -37,9 +37,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await contextFrom(request);
-    const existing = await listUgcVideos(context);
-    if (existing.length) return Response.json({ videos: existing, alreadyCreated: true });
-    return Response.json({ videos: await createBeggarHusbandUgcBatch(context) }, { status: 202 });
+    const body = await request.json().catch(() => null) as { episodeId?: unknown } | null;
+    if (!body || typeof body.episodeId !== 'string' || !body.episodeId.trim()) {
+      throw new StudioError('invalid_input', 'Choose a published episode before generating hooks.', 400);
+    }
+    return Response.json({ videos: await createEpisodeUgcBatch(context, body.episodeId) }, { status: 202 });
   } catch (error) {
     return responseError(error);
   }
