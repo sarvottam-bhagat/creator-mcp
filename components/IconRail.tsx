@@ -68,6 +68,25 @@ const ITEMS: Item[] = [
       </svg>
     ),
   },
+  {
+    label: 'Marketing',
+    href: '/marketing',
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={iconClass}
+        aria-hidden
+      >
+        <path d="m4 12 12-7v14L4 12Z" />
+        <path d="M16 9.5c2 .6 3.4 1.8 4 3.5-.6 1.7-2 2.9-4 3.5" />
+      </svg>
+    ),
+  },
 ];
 
 export default function IconRail({ userName = 'Sarvottam' }: { userName?: string }) {
