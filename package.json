@@ -13,6 +13,8 @@
     "mcp:start": "node dist/mcp/mcp/index.js"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.110.8",
