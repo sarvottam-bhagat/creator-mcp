@@ -9,8 +9,10 @@ import { OPENAI_VOICES, type OpenAiVoice } from '@/lib/studio/voices';
 import { supabase } from '@/lib/supabase/client';
 
 type MusicTrack = { id: string; title: string; mood: string; duration_seconds: number; asset_key: string };
+type Series = { id: string; title: string; description: string };
 type PublishedEpisode = {
   id: string;
+  series_id: string;
   title: string;
   voice: string | null;
   narration_paths: string[];
@@ -20,6 +22,7 @@ type PublishedEpisode = {
 };
 type DraftEpisode = {
   id: string;
+  series_id: string;
   title: string;
   script: string;
   voice: OpenAiVoice | null;
@@ -41,6 +44,9 @@ export default function StudioPage() {
   const [script, setScript] = useState('');
   const [voice, setVoice] = useState<OpenAiVoice>('marin');
   const [music, setMusic] = useState<MusicTrack[]>([]);
+  const [series, setSeries] = useState<Series[]>([]);
+  const [selectedSeriesId, setSelectedSeriesId] = useState('');
+  const [newSeriesTitle, setNewSeriesTitle] = useState('');
   const [musicTrackId, setMusicTrackId] = useState('night-drive');
   const [thumbnailPrompt, setThumbnailPrompt] = useState('A cinematic midnight city rooftop in rain, a glowing vintage radio on a ledge, deep violet and crimson light, atmospheric audio drama cover art, no text');
   const [thumbnailPath, setThumbnailPath] = useState<string | null>(null);
@@ -59,16 +65,21 @@ export default function StudioPage() {
   async function loadPublishedEpisodes() {
     const { data, error } = await supabase
       .from('episodes')
-      .select('id, title, voice, narration_paths, thumbnail_path, published_at, music_tracks(title, mood, asset_key)')
+      .select('id, series_id, title, voice, narration_paths, thumbnail_path, published_at, music_tracks(title, mood, asset_key)')
       .eq('status', 'published')
       .order('published_at', { ascending: false });
     if (!error) setPublishedEpisodes((data ?? []) as unknown as PublishedEpisode[]);
   }
 
+  async function loadSeries() {
+    const { data, error } = await supabase.from('series').select('id, title, description').order('created_at');
+    if (!error) setSeries((data ?? []) as Series[]);
+  }
+
   async function loadDraftEpisodes() {
     const { data, error } = await supabase
       .from('episodes')
-      .select('id, title, script, voice, music_track_id, narration_paths, thumbnail_path, thumbnail_prompt, updated_at')
+      .select('id, series_id, title, script, voice, music_track_id, narration_paths, thumbnail_path, thumbnail_prompt, updated_at')
       .eq('status', 'draft')
       .order('updated_at', { ascending: false });
     if (!error) setDraftEpisodes((data ?? []) as DraftEpisode[]);
@@ -76,6 +87,8 @@ export default function StudioPage() {
 
   function resetForNewEpisode() {
     setEpisodeId(null);
+    setSelectedSeriesId('');
+    setNewSeriesTitle('');
     setTitle('');
     setScript('');
     setVoice('marin');
@@ -93,6 +106,7 @@ export default function StudioPage() {
     const draft = draftEpisodes.find((item) => item.id === id);
     if (!draft) return;
     setEpisodeId(draft.id);
+    setSelectedSeriesId(draft.series_id);
     setTitle(draft.title);
     setScript(draft.script);
     setVoice(draft.voice ?? 'marin');
@@ -130,6 +144,7 @@ export default function StudioPage() {
       if (tracksError) setNotice('Your workspace is ready, but soundtrack options could not load.');
       else {
         setMusic(tracks ?? []);
+        await loadSeries();
         await loadPublishedEpisodes();
         await loadDraftEpisodes();
         setNotice('Private Studio workspace ready. Your work is saved to your account.');
@@ -174,15 +189,24 @@ export default function StudioPage() {
       if (error) throw error;
       return episodeId;
     }
-    const { data: series, error: seriesError } = await supabase
-      .from('series')
-      .insert({ creator_id: user.id, title: 'My EchoFM series' })
-      .select('id')
-      .single();
-    if (seriesError || !series) throw seriesError ?? new Error('Could not create a series.');
+    let seriesId = selectedSeriesId;
+    if (!seriesId) {
+      const cleanedSeriesTitle = newSeriesTitle.trim();
+      if (!cleanedSeriesTitle) throw new Error('Choose an existing series or name a new series before saving this episode.');
+      const { data: createdSeries, error: seriesError } = await supabase
+        .from('series')
+        .insert({ creator_id: user.id, title: cleanedSeriesTitle })
+        .select('id, title, description')
+        .single();
+      if (seriesError || !createdSeries) throw seriesError ?? new Error('Could not create the series.');
+      seriesId = createdSeries.id;
+      setSelectedSeriesId(seriesId);
+      setNewSeriesTitle('');
+      await loadSeries();
+    }
     const { data: episode, error: episodeError } = await supabase
       .from('episodes')
-      .insert({ ...payload, series_id: series.id })
+      .insert({ ...payload, series_id: seriesId })
       .select('id')
       .single();
     if (episodeError || !episode) throw episodeError ?? new Error('Could not create an episode.');
@@ -275,6 +299,8 @@ export default function StudioPage() {
 
   const selectedMusic = music.find((track) => track.id === musicTrackId);
   const selectedVoice = OPENAI_VOICES.find((item) => item.id === voice);
+  const draftCollections = series.map((item) => ({ series: item, episodes: draftEpisodes.filter((episode) => episode.series_id === item.id) })).filter((item) => item.episodes.length);
+  const publishedCollections = series.map((item) => ({ series: item, episodes: publishedEpisodes.filter((episode) => episode.series_id === item.id) })).filter((item) => item.episodes.length);
 
   return (
     <>
@@ -289,7 +315,6 @@ export default function StudioPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/studio/connections" className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">Connected agents</Link>
-            <button onClick={() => void save('draft')} disabled={busy !== null || !hasSession} className="rounded-full border border-fm-border px-5 py-2.5 text-sm font-medium text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save draft'}</button>
           </div>
         </div>
 
@@ -304,6 +329,11 @@ export default function StudioPage() {
               <div className="mt-7 rounded-xl border border-fm-border bg-black/10 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><label className="block flex-1 text-sm font-medium text-fm-secondary">Editing episode<select value={episodeId ?? ''} onChange={(event) => event.target.value ? selectDraft(event.target.value) : resetForNewEpisode()} className="mt-2 h-11 w-full rounded-xl border border-fm-border bg-black/20 px-3 text-fm-primary outline-none focus:border-fm-border-bright"><option value="">New untitled episode</option>{draftEpisodes.map((draft) => <option key={draft.id} value={draft.id}>{draft.title || 'Untitled episode'} · last saved {new Date(draft.updated_at).toLocaleDateString()}</option>)}</select></label><button onClick={resetForNewEpisode} className="rounded-full border border-fm-border px-4 py-2.5 text-xs font-semibold text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary">+ New episode</button></div>
                 <p className="mt-3 text-xs leading-5 text-fm-tertiary">Published episodes are playback-only. To improve an older published episode, create a new draft from it first.</p>
+              </div>
+              <div className="mt-4 rounded-xl border border-fm-border bg-black/10 p-4">
+                <p className="text-sm font-medium text-fm-primary">Series for this episode</p>
+                <p className="mt-1 text-xs text-fm-tertiary">Every episode belongs to one series. Your drafts and published catalog are grouped by this name.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-fm-secondary">Existing series<select value={selectedSeriesId} onChange={(event) => { setSelectedSeriesId(event.target.value); if (event.target.value) setNewSeriesTitle(''); }} className="mt-2 h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary"><option value="">Choose a series</option>{series.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><label className="text-xs font-medium text-fm-secondary">Or create a new series<input value={newSeriesTitle} onChange={(event) => { setNewSeriesTitle(event.target.value); if (event.target.value) setSelectedSeriesId(''); }} placeholder="e.g. A Beautiful Lady" className="mt-2 h-10 w-full rounded-lg border border-fm-border bg-black/20 px-3 text-sm text-fm-primary placeholder:text-fm-tertiary" /></label></div>
               </div>
               <label className="mt-7 block text-sm font-medium text-fm-secondary">Episode title<input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-fm-border bg-black/20 px-3 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
               <label className="mt-5 block text-sm font-medium text-fm-secondary">Narration script<textarea value={script} onChange={(event) => setScript(event.target.value)} rows={12} className="mt-2 w-full resize-y rounded-xl border border-fm-border bg-black/20 p-3 leading-7 text-fm-primary outline-none focus:border-fm-border-bright" /></label>
@@ -350,7 +380,7 @@ export default function StudioPage() {
               ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 p-4 text-sm"><span className="text-fm-tertiary">{label}</span><span className="text-right text-fm-primary">{value}</span></div>)}</div>
               <EpisodePreview narrationUrls={narrationUrls} musicAssetKey={selectedMusic?.asset_key} musicName={selectedMusic?.title} />
               {blockers.length > 0 && <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">To publish, complete: {blockers.join(', ')}.</p>}
-              <button onClick={() => void save('published')} disabled={busy !== null || blockers.length > 0 || !hasSession} className="mt-6 rounded-full bg-fm-red px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busy === 'publish' ? 'Publishing…' : 'Publish episode'}</button>
+              <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => void save('draft')} disabled={busy !== null || !hasSession} className="rounded-full border border-fm-border px-6 py-3 text-sm font-semibold text-fm-secondary hover:border-fm-border-bright hover:text-fm-primary disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save as draft'}</button><button onClick={() => void save('published')} disabled={busy !== null || blockers.length > 0 || !hasSession} className="rounded-full bg-fm-red px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busy === 'publish' ? 'Publishing…' : 'Publish episode'}</button></div>
             </div>}
           </div>
 
@@ -362,6 +392,11 @@ export default function StudioPage() {
           </aside>
         </section>
 
+        <section className="mt-10 border-t border-fm-divider pt-10" aria-labelledby="draft-episodes-heading">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-medium tracking-[0.16em] text-fm-red uppercase">Your workspace</p><h2 id="draft-episodes-heading" className="mt-2 text-2xl font-semibold text-fm-primary">Draft episodes</h2><p className="mt-2 text-sm text-fm-tertiary">Private work in progress, grouped inside each series.</p></div><span className="text-sm text-fm-tertiary">{draftEpisodes.length} drafts</span></div>
+          {!hasSession ? <p className="mt-6 rounded-xl border border-dashed border-fm-border p-5 text-sm text-fm-tertiary">Sign in to view your private drafts.</p> : draftCollections.length ? <div className="mt-6 space-y-6">{draftCollections.map(({ series: item, episodes }) => <section key={item.id} className="rounded-2xl border border-fm-divider bg-fm-surface p-5"><h3 className="text-lg font-semibold text-fm-primary">{item.title}</h3><p className="mt-1 text-xs text-fm-tertiary">{episodes.length} draft{episodes.length === 1 ? '' : 's'}</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{episodes.map((episode) => <button key={episode.id} onClick={() => { selectDraft(episode.id); setStep('Script'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-xl border border-fm-border bg-black/10 p-4 text-left hover:border-fm-border-bright"><span className="block text-xs text-fm-red">DRAFT</span><span className="mt-1 block font-medium text-fm-primary">{episode.title || 'Untitled episode'}</span><span className="mt-2 block text-xs text-fm-tertiary">Continue writing or optimize its ending →</span></button>)}</div></section>)}</div> : <div className="mt-6 rounded-2xl border border-dashed border-fm-border bg-fm-surface p-6 text-sm text-fm-tertiary">No drafts yet. Choose or name a series, write your episode, then save it as a draft from Review.</div>}
+        </section>
+
         <section className="mt-10 border-t border-fm-divider pt-10" aria-labelledby="published-episodes-heading">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -371,7 +406,7 @@ export default function StudioPage() {
             </div>
             <span className="text-sm text-fm-tertiary">{publishedEpisodes.length} published</span>
           </div>
-          {!hasSession ? <p className="mt-6 rounded-xl border border-dashed border-fm-border p-5 text-sm text-fm-tertiary">Sign in to view your published catalog.</p> : publishedEpisodes.length ? <div className="mt-6 grid gap-5 lg:grid-cols-2">{publishedEpisodes.map((episode) => <PublishedEpisodeCard key={episode.id} episode={episode} />)}</div> : <div className="mt-6 rounded-2xl border border-dashed border-fm-border bg-fm-surface p-6 text-sm text-fm-tertiary">Your published episodes will appear here after you go live.</div>}
+          {!hasSession ? <p className="mt-6 rounded-xl border border-dashed border-fm-border p-5 text-sm text-fm-tertiary">Sign in to view your published catalog.</p> : publishedCollections.length ? <div className="mt-6 space-y-6">{publishedCollections.map(({ series: item, episodes }) => <section key={item.id} className="rounded-2xl border border-fm-divider bg-fm-surface p-5"><h3 className="text-lg font-semibold text-fm-primary">{item.title}</h3><p className="mt-1 text-xs text-fm-tertiary">{episodes.length} published episode{episodes.length === 1 ? '' : 's'}</p><div className="mt-4 grid gap-5 lg:grid-cols-2">{episodes.map((episode) => <PublishedEpisodeCard key={episode.id} episode={episode} />)}</div></section>)}</div> : <div className="mt-6 rounded-2xl border border-dashed border-fm-border bg-fm-surface p-6 text-sm text-fm-tertiary">Your published episodes will appear here after you go live.</div>}
         </section>
       </main>
     </>
