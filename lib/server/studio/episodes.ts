@@ -269,6 +269,11 @@ export function createEpisodeService({ userId, repository, now = () => new Date(
       return updateDraft(id, patch);
     },
 
+    // Any script rewrite invalidates the existing narration so a creator can
+    // never publish audio that no longer matches the saved story.
+    replaceScriptAndResetNarration: (id: string, script: string) =>
+      updateDraft(id, { script, narration_paths: [] }),
+
     async selectVoice(id: string, voice: string) {
       if (!voiceIds.has(voice)) {
         throw new StudioError('invalid_input', 'Choose one of EchoFM’s supported narration voices.', 400);

@@ -107,6 +107,16 @@ describe('episode service', () => {
     });
   });
 
+  it('clears attached narration when the script is rewritten', async () => {
+    const repo = repository(episode());
+    const service = createEpisodeService({ userId: 'user-1', repository: repo });
+
+    await expect(service.replaceScriptAndResetNarration('episode-1', 'A different ending.')).resolves.toMatchObject({
+      script: 'A different ending.',
+      narration_paths: [],
+    });
+  });
+
   it('validates voice and music catalog selections', async () => {
     const service = createEpisodeService({ userId: 'user-1', repository: repository(episode()) });
 

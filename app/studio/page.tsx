@@ -246,10 +246,11 @@ export default function StudioPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setScript(data.episode.script);
+      setNarrationPaths([]);
       await loadDraftEpisodes();
       setCliffhanger(null);
       setSelectedCliffhanger(null);
-      setNotice('Selected ending saved to your private draft. It has not been published.');
+      setNotice('Selected ending saved to your private draft. Regenerate narration before publishing.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The ending could not be updated.');
     } finally { setBusy(null); }

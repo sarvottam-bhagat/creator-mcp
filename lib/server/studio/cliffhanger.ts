@@ -105,5 +105,5 @@ export async function applyCliffhangerRewrite(context: StudioContext, episodeId:
   const episodes = createEpisodeServiceForContext(context);
   const episode = await episodes.getEpisode(episodeId);
   ensureDraft(episode);
-  return episodes.updateEpisode(episodeId, { script: replaceFinalSection(episode.script, ending) });
+  return episodes.replaceScriptAndResetNarration(episodeId, replaceFinalSection(episode.script, ending));
 }
