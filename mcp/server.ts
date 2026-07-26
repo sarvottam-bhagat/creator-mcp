@@ -20,6 +20,7 @@ import {
   type CliffhangerAnalysis,
 } from '../lib/server/studio/cliffhanger';
 import { reviewEpisode as buildEpisodeReview, type EpisodeReview } from '../lib/server/studio/review';
+import { analyzeStoryContinuity, rewriteEpisodeAsDraft, type ContinuityReport } from '../lib/server/studio/story-tools';
 import { OPENAI_VOICES } from '../lib/studio/voices';
 
 export type EchoFmMcpServices = {
@@ -30,6 +31,8 @@ export type EchoFmMcpServices = {
   reviewEpisode(episodeId: string): Promise<EpisodeReview>;
   scoreCliffhanger(episodeId: string, input: { genre?: string; target?: string }): Promise<CliffhangerAnalysis>;
   applyCliffhangerRewrite(episodeId: string, ending: string): ReturnType<EpisodeService['updateEpisode']>;
+  analyzeStoryContinuity(seriesId: string): Promise<ContinuityReport>;
+  rewriteEpisodeAsDraft(episodeId: string, input: { instruction: string; genre?: string; tone?: string }): Promise<unknown>;
 };
 
 export function createEchoFmMcpServices(context: StudioContext): EchoFmMcpServices {
@@ -43,6 +46,8 @@ export function createEchoFmMcpServices(context: StudioContext): EchoFmMcpServic
     reviewEpisode: (episodeId) => buildEpisodeReview(context, episodeId),
     scoreCliffhanger: (episodeId, input) => scoreEpisodeCliffhanger(context, episodeId, input),
     applyCliffhangerRewrite: (episodeId, ending) => applyEpisodeCliffhangerRewrite(context, episodeId, ending),
+    analyzeStoryContinuity: (seriesId) => analyzeStoryContinuity(context, seriesId),
+    rewriteEpisodeAsDraft: (episodeId, input) => rewriteEpisodeAsDraft(context, episodeId, input),
   };
 }
 
@@ -186,6 +191,17 @@ export function createEchoFmMcpServer(services: EchoFmMcpServices): McpServer {
     inputSchema: { episode_id: z.string().uuid(), ending: z.string().min(10).max(4_000) },
   }, async ({ episode_id, ending }) => runTool('Cliffhanger rewrite saved to your private draft.', () =>
     services.applyCliffhangerRewrite(episode_id, ending)));
+
+  server.registerTool('analyze_story_continuity', {
+    description: 'Read a creator-owned series and return continuity issues with evidence and safe suggested fixes. This never edits, generates assets, or publishes.',
+    inputSchema: { series_id: z.string().uuid() },
+  }, async ({ series_id }) => runTool('Story continuity report ready.', () => services.analyzeStoryContinuity(series_id)));
+
+  server.registerTool('rewrite_episode_script', {
+    description: 'Create a new private draft rewrite of a creator-owned episode. The original is preserved and nothing is published.',
+    inputSchema: { episode_id: z.string().uuid(), instruction: z.string().min(5).max(4_000), genre: z.string().max(80).optional(), tone: z.string().max(80).optional() },
+  }, async ({ episode_id, instruction, genre, tone }) => runTool('Rewritten episode saved as a new private draft.', () =>
+    services.rewriteEpisodeAsDraft(episode_id, { instruction, genre, tone })));
 
   server.registerTool('publish_episode', {
     description: 'Publish a ready episode after explicit creator confirmation.',

@@ -26,6 +26,8 @@ function services(): EchoFmMcpServices {
     reviewEpisode: vi.fn().mockResolvedValue({ blockers: [] }),
     scoreCliffhanger: vi.fn().mockResolvedValue({ score: 74, options: [] }),
     applyCliffhangerRewrite: vi.fn().mockResolvedValue({ id: episodeId, status: 'draft' }),
+    analyzeStoryContinuity: vi.fn().mockResolvedValue({ issues: [] }),
+    rewriteEpisodeAsDraft: vi.fn().mockResolvedValue({ episode: { id: episodeId, status: 'draft' } }),
   } as unknown as EchoFmMcpServices;
 }
 
@@ -67,6 +69,8 @@ describe('EchoFM MCP tools', () => {
       'list_published_episodes',
       'score_cliffhanger',
       'apply_cliffhanger_rewrite',
+      'analyze_story_continuity',
+      'rewrite_episode_script',
     ]));
   });
 
