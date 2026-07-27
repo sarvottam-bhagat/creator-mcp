@@ -41,22 +41,22 @@ EchoFM is an AI-powered workspace for creating, improving, publishing, and marke
 
 ```mermaid
 flowchart LR
-  Creator --> Studio
-  Studio --> "Series + scripts"
-  "Series + scripts" --> "Voice, music, thumbnail"
-  "Voice, music, thumbnail" --> "Narration + review"
-  "Narration + review" --> "Draft or publish"
+  A[Creator] --> B[EchoFM Studio]
+  B --> C[Series and scripts]
+  C --> D[Voice music and thumbnail]
+  D --> E[Narration and review]
+  E --> F[Save draft or publish]
 
-  Creator --> "Codex / Claude"
-  "Codex / Claude" --> "Secure EchoFM sign-in"
-  "Secure EchoFM sign-in" --> "EchoFM MCP + Writers Room"
-  "EchoFM MCP + Writers Room" --> "Create, improve, review, publish"
+  A --> G[Codex or Claude]
+  G --> H[Secure EchoFM sign in]
+  H --> I[EchoFM MCP and Writers Room]
+  I --> J[Create improve review and publish]
 
-  "Draft or publish" --> Marketing
-  Marketing --> "Episode-specific UGC hooks"
-  "Episode-specific UGC hooks" --> "Editable scripts"
-  "Editable scripts" --> "Talking-head videos"
-  "Talking-head videos" --> "Hook + episode preview + CTA reel"
+  F --> K[Marketing]
+  K --> L[Episode specific UGC hooks]
+  L --> M[Editable hook scripts]
+  M --> N[Talking head videos]
+  N --> O[Hook episode preview and CTA reel]
 ```
 
 ## Architecture and security
